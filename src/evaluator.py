@@ -1,11 +1,13 @@
 import re
 import shlex
+import threading
 import time
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from docker import DockerClient
 from requests.exceptions import ReadTimeout
@@ -165,6 +167,8 @@ def run_evaluation(
     on_status: Callable[[ContainerStatus], None],
     scenario: ScenarioConfig | None = None,
     memory_peak_cache: dict[str, int] | None = None,
+    shutdown_event: threading.Event | None = None,
+    active_containers: set[Any] | None = None,
 ) -> EvalResult:
     """Run a single skill evaluation in a Docker container."""
     start = time.monotonic()
@@ -199,8 +203,19 @@ def run_evaluation(
     container = client.containers.create(**create_kwargs)  # type: ignore[arg-type]
     try:
         cname: str = container.name or ""
+        if shutdown_event and shutdown_event.is_set():
+            return EvalResult(
+                skill_name=result_label,
+                exit_code=-1,
+                stdout="",
+                stderr="",
+                duration_seconds=time.monotonic() - start,
+                error="interrupted",
+            )
         on_status(_make_status(result_label, "starting", 0.0, cname))
         container.start()
+        if active_containers is not None:
+            active_containers.add(container)
         on_status(
             _make_status(
                 result_label, "running", time.monotonic() - start, cname
@@ -243,6 +258,8 @@ def run_evaluation(
             peak_memory_bytes=peak,
         )
     finally:
+        if active_containers is not None:
+            active_containers.discard(container)
         with suppress(Exception):
             container.remove(force=True)
 
@@ -256,6 +273,7 @@ def run_evaluations(
     scenarios: Sequence[ScenarioConfig] = (),
     on_result: Callable[[EvalResult], None] | None = None,
     memory_peak_cache: dict[str, int] | None = None,
+    shutdown_event: threading.Event | None = None,
 ) -> tuple[EvalResult, ...]:
     """Run evaluations in parallel, returning results (partial on KeyboardInterrupt)."""
     pairs: list[tuple[SkillConfig, ScenarioConfig | None]] = (
@@ -264,26 +282,36 @@ def run_evaluations(
         else [(s, None) for s in skills]
     )
     workers = max_workers or calculate_max_workers(client, config.mem_limit)
+    event = shutdown_event or threading.Event()
+    active: set[Any] = set()
     results: list[EvalResult] = []
+    pool = ThreadPoolExecutor(max_workers=workers)
     try:
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = {
-                pool.submit(
-                    run_evaluation,
-                    skill,
-                    config,
-                    client,
-                    on_status,
-                    scenario=scenario,
-                    memory_peak_cache=memory_peak_cache,
-                ): skill
-                for skill, scenario in pairs
-            }
-            for future in as_completed(futures):
-                result = future.result()
-                results.append(result)
-                if on_result is not None:
-                    on_result(result)
+        futures = {
+            pool.submit(
+                run_evaluation,
+                skill,
+                config,
+                client,
+                on_status,
+                scenario=scenario,
+                memory_peak_cache=memory_peak_cache,
+                shutdown_event=event,
+                active_containers=active,
+            ): skill
+            for skill, scenario in pairs
+        }
+        for future in as_completed(futures):
+            result = future.result()
+            results.append(result)
+            if on_result is not None:
+                on_result(result)
     except KeyboardInterrupt:
-        pass
+        event.set()
+        for container in list(active):
+            with suppress(Exception):
+                container.kill()
+        pool.shutdown(wait=False, cancel_futures=True)
+    else:
+        pool.shutdown(wait=True)
     return tuple(results)

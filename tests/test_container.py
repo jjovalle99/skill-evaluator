@@ -338,3 +338,50 @@ def test_peak_memory_zero_without_cache(tmp_path: Path) -> None:
     result = run_evaluation(skill, config, client, lambda s: None)
 
     assert result.peak_memory_bytes == 0
+
+
+def test_skips_start_when_shutdown_set(tmp_path: Path) -> None:
+    import threading
+
+    skill = _make_skill(tmp_path)
+    config = _make_config()
+    client = MagicMock()
+    container = _make_mock_container(exit_code=0)
+    client.containers.create.return_value = container
+    event = threading.Event()
+    event.set()
+
+    result = run_evaluation(
+        skill, config, client, lambda s: None, shutdown_event=event
+    )
+
+    assert result.error == "interrupted"
+    container.start.assert_not_called()
+    container.remove.assert_called_once_with(force=True)
+
+
+def test_container_registered_while_running(tmp_path: Path) -> None:
+    from typing import Any
+
+    skill = _make_skill(tmp_path)
+    config = _make_config()
+    client = MagicMock()
+    container = _make_mock_container(exit_code=0)
+    client.containers.create.return_value = container
+    active: set[Any] = set()
+    seen_during_run: list[bool] = []
+
+    original_wait = container.wait
+
+    def wait_spy(**kwargs: object) -> dict[str, int]:
+        seen_during_run.append(container in active)
+        return original_wait(**kwargs)
+
+    container.wait = wait_spy
+
+    run_evaluation(
+        skill, config, client, lambda s: None, active_containers=active
+    )
+
+    assert seen_during_run == [True]
+    assert container not in active
