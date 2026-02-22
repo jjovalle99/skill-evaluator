@@ -31,3 +31,15 @@ def test_parser_flags_splits_into_tuple() -> None:
 def test_parser_flags_defaults_empty() -> None:
     args = _build_parser().parse_args(["skills/foo"])
     assert args.flags == ""
+
+
+def test_parser_scenario_defaults_none() -> None:
+    args = _build_parser().parse_args(["skills/foo"])
+    assert args.scenario is None
+
+
+def test_parser_scenario_accepts_multiple() -> None:
+    from pathlib import Path
+
+    args = _build_parser().parse_args(["skills/foo", "--scenario", "a", "b"])
+    assert args.scenario == [Path("a"), Path("b")]

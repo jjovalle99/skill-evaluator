@@ -4,7 +4,11 @@ from unittest.mock import MagicMock
 import pytest
 from requests.exceptions import ReadTimeout
 
-from src.evaluator import ContainerConfig, SkillConfig, run_evaluation
+from src.evaluator import (
+    ContainerConfig,
+    SkillConfig,
+    run_evaluation,
+)
 
 
 def _make_skill(tmp_path: Path, name: str = "test-skill") -> SkillConfig:
@@ -175,3 +179,115 @@ def test_empty_extra_flags_keeps_default_command(tmp_path: Path) -> None:
 
     call_kwargs = client.containers.create.call_args[1]
     assert call_kwargs["command"] == ["--print", "do the thing"]
+
+
+def _make_scenario(
+    tmp_path: Path, name: str = "code-review"
+) -> "ScenarioConfig":
+    from src.evaluator import ScenarioConfig
+
+    d = tmp_path / name
+    d.mkdir(exist_ok=True)
+    (d / "setup.sh").write_text("echo setup")
+    return ScenarioConfig(path=d.resolve(), name=name)
+
+
+def test_no_scenario_no_entrypoint_override(tmp_path: Path) -> None:
+    skill = _make_skill(tmp_path)
+    config = _make_config()
+    client = MagicMock()
+    container = _make_mock_container(exit_code=0)
+    client.containers.create.return_value = container
+
+    run_evaluation(skill, config, client, lambda s: None)
+
+    call_kwargs = client.containers.create.call_args[1]
+    assert "entrypoint" not in call_kwargs
+
+
+def test_scenario_adds_volume_mount(tmp_path: Path) -> None:
+    skill = _make_skill(tmp_path)
+    scenario = _make_scenario(tmp_path)
+    config = _make_config()
+    client = MagicMock()
+    container = _make_mock_container(exit_code=0)
+    client.containers.create.return_value = container
+
+    run_evaluation(skill, config, client, lambda s: None, scenario=scenario)
+
+    call_kwargs = client.containers.create.call_args[1]
+    assert str(scenario.path) in call_kwargs["volumes"]
+    assert call_kwargs["volumes"][str(scenario.path)] == {
+        "bind": "/tmp/scenario",
+        "mode": "ro",
+    }
+
+
+def test_scenario_sets_entrypoint(tmp_path: Path) -> None:
+    skill = _make_skill(tmp_path)
+    scenario = _make_scenario(tmp_path)
+    config = _make_config()
+    client = MagicMock()
+    container = _make_mock_container(exit_code=0)
+    client.containers.create.return_value = container
+
+    run_evaluation(skill, config, client, lambda s: None, scenario=scenario)
+
+    call_kwargs = client.containers.create.call_args[1]
+    assert call_kwargs["entrypoint"] == ["bash", "-c"]
+
+
+def test_scenario_command_runs_setup_then_claude(tmp_path: Path) -> None:
+    skill = _make_skill(tmp_path)
+    scenario = _make_scenario(tmp_path)
+    config = _make_config()
+    client = MagicMock()
+    container = _make_mock_container(exit_code=0)
+    client.containers.create.return_value = container
+
+    run_evaluation(skill, config, client, lambda s: None, scenario=scenario)
+
+    call_kwargs = client.containers.create.call_args[1]
+    cmd = call_kwargs["command"]
+    assert isinstance(cmd, list) and len(cmd) == 1
+    assert cmd[0].startswith("bash /tmp/scenario/setup.sh && exec claude")
+    assert "--print" in cmd[0]
+
+
+def test_scenario_result_label_uses_dirname_and_scenario(
+    tmp_path: Path,
+) -> None:
+    skill = _make_skill(tmp_path, name="test-skill")
+    scenario = _make_scenario(tmp_path, name="review")
+    config = _make_config()
+    client = MagicMock()
+    container = _make_mock_container(exit_code=0)
+    client.containers.create.return_value = container
+
+    result = run_evaluation(
+        skill, config, client, lambda s: None, scenario=scenario
+    )
+
+    assert result.skill_name == "test-skill/review"
+
+
+def test_scenario_with_name_override_label_uses_dirname(
+    tmp_path: Path,
+) -> None:
+    d = tmp_path / "actual-dir"
+    d.mkdir()
+    skill = SkillConfig(path=d, name="overridden-name")
+    scenario = _make_scenario(tmp_path, name="review")
+    config = _make_config()
+    client = MagicMock()
+    container = _make_mock_container(exit_code=0)
+    client.containers.create.return_value = container
+
+    result = run_evaluation(
+        skill, config, client, lambda s: None, scenario=scenario
+    )
+
+    assert result.skill_name == "actual-dir/review"
+    call_kwargs = client.containers.create.call_args[1]
+    skill_mount = f"/home/claude/.claude/skills/{skill.name}"
+    assert call_kwargs["volumes"][str(skill.path)]["bind"] == skill_mount

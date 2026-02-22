@@ -6,7 +6,12 @@ from rich.progress import Progress, TaskID
 from rich.table import Table
 from rich.text import Text
 
-from src.evaluator import ContainerStatus, EvalResult, SkillConfig
+from src.evaluator import (
+    ContainerStatus,
+    EvalResult,
+    ScenarioConfig,
+    SkillConfig,
+)
 
 _STATE_COLORS: dict[str, str] = {
     "starting": "yellow",
@@ -53,6 +58,7 @@ def format_dry_run(
     prompt: str,
     max_workers: int | None,
     extra_flags: tuple[str, ...] = (),
+    scenarios: Sequence[ScenarioConfig] = (),
 ) -> RenderableType:
     """Format dry-run config preview as a rich Panel."""
     workers_display = str(max_workers) if max_workers is not None else "auto"
@@ -75,6 +81,14 @@ def format_dry_run(
         "[bold]Prompt:[/bold]",
         f"  [dim]{prompt_display}[/dim]",
     ]
+    if scenarios:
+        total = len(skills) * len(scenarios)
+        lines += [
+            "",
+            "[bold]Scenarios:[/bold]",
+            *[f"  [cyan]{sc.name}[/cyan]  {sc.path}" for sc in scenarios],
+            f"[bold]Matrix:[/bold]      {len(skills)} skills \u00d7 {len(scenarios)} scenarios = {total} containers",
+        ]
     return Panel("\n".join(lines), title="Dry Run", border_style="blue")
 
 

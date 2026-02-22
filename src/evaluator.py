@@ -1,4 +1,5 @@
 import re
+import shlex
 import time
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -14,6 +15,28 @@ from requests.exceptions import ReadTimeout
 class SkillConfig:
     path: Path
     name: str
+
+
+@dataclass(frozen=True)
+class ScenarioConfig:
+    path: Path
+    name: str
+
+
+def discover_scenarios(paths: Sequence[Path]) -> tuple[ScenarioConfig, ...]:
+    """Validate scenario directories and return configs."""
+    scenarios: list[ScenarioConfig] = []
+    for p in paths:
+        resolved = p.resolve()
+        if not resolved.exists():
+            raise FileNotFoundError(f"Scenario path does not exist: {p}")
+        if not resolved.is_dir():
+            raise NotADirectoryError(f"Scenario path is not a directory: {p}")
+        setup_sh = resolved / "setup.sh"
+        if not setup_sh.is_file():
+            raise FileNotFoundError(f"setup.sh not found in scenario: {p}")
+        scenarios.append(ScenarioConfig(path=resolved, name=resolved.name))
+    return tuple(scenarios)
 
 
 @dataclass(frozen=True)
@@ -65,9 +88,9 @@ def load_prompt(prompt_arg: str | None, prompt_file: Path) -> str:
     """Return CLI prompt if given, else read prompt_file. Raise if neither available."""
     if prompt_arg is not None:
         p = Path(prompt_arg)
-        if not p.is_file():
-            raise FileNotFoundError(f"Prompt file not found: {prompt_arg}")
-        return p.read_text().strip()
+        if p.is_file():
+            return p.read_text().strip()
+        return prompt_arg
     if prompt_file.is_file():
         return prompt_file.read_text().strip()
     raise ValueError(f"No prompt provided and {prompt_file} not found")
@@ -117,32 +140,59 @@ def _classify_error(exit_code: int) -> str | None:
     return f"nonzero_exit:{exit_code}"
 
 
+def _build_scenario_command(config: ContainerConfig, prompt: str) -> list[str]:
+    """Build shell command that runs setup.sh then exec's claude."""
+    flags = " ".join(config.extra_flags) + " " if config.extra_flags else ""
+    return [
+        f"bash /tmp/scenario/setup.sh && exec claude {flags}--print {shlex.quote(prompt)}"
+    ]
+
+
 def run_evaluation(
     skill: SkillConfig,
     config: ContainerConfig,
     client: DockerClient,
     on_status: Callable[[ContainerStatus], None],
+    scenario: ScenarioConfig | None = None,
 ) -> EvalResult:
     """Run a single skill evaluation in a Docker container."""
     start = time.monotonic()
-    skill_dest = f"/home/claude/.claude/skills/{skill.name}"
-    container = client.containers.create(
-        image=config.image,
-        command=[*config.extra_flags, "--print", config.prompt],
-        volumes={str(skill.path): {"bind": skill_dest, "mode": "ro"}},
-        environment=config.env_vars,
-        mem_limit=config.mem_limit,
-        memswap_limit=config.mem_limit,
-        network_mode="bridge",
-        working_dir="/workspace",
+    result_label = (
+        f"{skill.path.name}/{scenario.name}" if scenario else skill.name
     )
+    skill_dest = f"/home/claude/.claude/skills/{skill.name}"
+    volumes: dict[str, dict[str, str]] = {
+        str(skill.path): {"bind": skill_dest, "mode": "ro"},
+    }
+    create_kwargs: dict[str, object] = {
+        "image": config.image,
+        "volumes": volumes,
+        "environment": config.env_vars,
+        "mem_limit": config.mem_limit,
+        "memswap_limit": config.mem_limit,
+        "network_mode": "bridge",
+        "working_dir": "/workspace",
+    }
+    if scenario:
+        volumes[str(scenario.path)] = {"bind": "/tmp/scenario", "mode": "ro"}
+        create_kwargs["entrypoint"] = ["bash", "-c"]
+        create_kwargs["command"] = _build_scenario_command(
+            config, config.prompt
+        )
+    else:
+        create_kwargs["command"] = [
+            *config.extra_flags,
+            "--print",
+            config.prompt,
+        ]
+    container = client.containers.create(**create_kwargs)  # type: ignore[arg-type]
     try:
         cname: str = container.name or ""
-        on_status(_make_status(skill.name, "starting", 0.0, cname))
+        on_status(_make_status(result_label, "starting", 0.0, cname))
         container.start()
         on_status(
             _make_status(
-                skill.name, "running", time.monotonic() - start, cname
+                result_label, "running", time.monotonic() - start, cname
             )
         )
         try:
@@ -151,9 +201,9 @@ def run_evaluation(
             with suppress(Exception):
                 container.stop()
             elapsed = time.monotonic() - start
-            on_status(_make_status(skill.name, "timeout", elapsed, cname))
+            on_status(_make_status(result_label, "timeout", elapsed, cname))
             return EvalResult(
-                skill_name=skill.name,
+                skill_name=result_label,
                 exit_code=-1,
                 stdout="",
                 stderr="",
@@ -166,9 +216,9 @@ def run_evaluation(
         elapsed = time.monotonic() - start
         error = _classify_error(exit_code)
         state = "failed" if error else "completed"
-        on_status(_make_status(skill.name, state, elapsed, cname))
+        on_status(_make_status(result_label, state, elapsed, cname))
         return EvalResult(
-            skill_name=skill.name,
+            skill_name=result_label,
             exit_code=exit_code,
             stdout=stdout,
             stderr=stderr,
@@ -186,17 +236,28 @@ def run_evaluations(
     client: DockerClient,
     on_status: Callable[[ContainerStatus], None],
     max_workers: int | None = None,
+    scenarios: Sequence[ScenarioConfig] = (),
 ) -> tuple[EvalResult, ...]:
     """Run evaluations in parallel, returning results (partial on KeyboardInterrupt)."""
+    pairs: list[tuple[SkillConfig, ScenarioConfig | None]] = (
+        [(s, sc) for s in skills for sc in scenarios]
+        if scenarios
+        else [(s, None) for s in skills]
+    )
     workers = max_workers or calculate_max_workers(client, config.mem_limit)
     results: list[EvalResult] = []
     try:
         with ThreadPoolExecutor(max_workers=workers) as pool:
             futures = {
                 pool.submit(
-                    run_evaluation, skill, config, client, on_status
+                    run_evaluation,
+                    skill,
+                    config,
+                    client,
+                    on_status,
+                    scenario=scenario,
                 ): skill
-                for skill in skills
+                for skill, scenario in pairs
             }
             for future in as_completed(futures):
                 results.append(future.result())

@@ -41,6 +41,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-workers", type=int, default=None)
     parser.add_argument("--name", default=None)
     parser.add_argument("--flags", default="")
+    parser.add_argument("--scenario", nargs="+", type=Path, default=None)
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     return parser
@@ -60,7 +61,10 @@ def main() -> None:
 
     import shlex
 
+    from src.evaluator import discover_scenarios
+
     skills = discover_skills(args.skills, name_override=args.name)
+    scenarios = discover_scenarios(args.scenario) if args.scenario else ()
     prompt = load_prompt(args.prompt, Path("prompt.md"))
     extra_flags = tuple(shlex.split(args.flags))
 
@@ -74,6 +78,7 @@ def main() -> None:
                 prompt=prompt,
                 max_workers=args.max_workers,
                 extra_flags=extra_flags,
+                scenarios=scenarios,
             )
         )
         sys.exit(0)
@@ -91,7 +96,8 @@ def main() -> None:
     statuses: dict[str, ContainerStatus] = {}
     start_times: dict[str, float] = {}
     progress = Progress()
-    task_id = create_live_display(len(skills), progress)
+    total = len(skills) * len(scenarios) if scenarios else len(skills)
+    task_id = create_live_display(total, progress)
 
     _RUNNING = frozenset({"starting", "running"})
     _TERMINAL = frozenset({"completed", "failed", "timeout", "oom"})
@@ -136,7 +142,12 @@ def main() -> None:
             _refresh(live)
 
         results = run_evaluations(
-            skills, config, client, on_status, args.max_workers
+            skills,
+            config,
+            client,
+            on_status,
+            args.max_workers,
+            scenarios=scenarios,
         )
         stop_event.set()
         ticker.join()

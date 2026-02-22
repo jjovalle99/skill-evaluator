@@ -89,3 +89,35 @@ def test_format_dry_run_truncates_long_prompt() -> None:
     assert "..." in text
     assert "x" * 201 not in text
     assert "4" in text
+
+
+def test_format_dry_run_with_scenarios_shows_matrix() -> None:
+    from src.evaluator import ScenarioConfig
+
+    skills = (
+        SkillConfig(path=Path("/tmp/a"), name="alpha"),
+        SkillConfig(path=Path("/tmp/b"), name="beta"),
+    )
+    scenarios = (
+        ScenarioConfig(path=Path("/tmp/s1"), name="s1"),
+        ScenarioConfig(path=Path("/tmp/s2"), name="s2"),
+        ScenarioConfig(path=Path("/tmp/s3"), name="s3"),
+    )
+    text = _render(
+        format_dry_run(
+            skills=skills,
+            image="img",
+            memory="1g",
+            timeout=60,
+            prompt="test",
+            max_workers=None,
+            scenarios=scenarios,
+        )
+    )
+    assert "Scenarios" in text
+    assert "s1" in text
+    assert "s2" in text
+    assert "s3" in text
+    assert "2 skills" in text
+    assert "3 scenarios" in text
+    assert "6 containers" in text
