@@ -1,11 +1,17 @@
 import argparse
+import logging
 import os
 import sys
 import threading
 import time
 from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger(__name__)
 
 import docker
+from docker import DockerClient
+from docker.models.containers import Container
 from dotenv import load_dotenv
 from rich.console import Console, Group
 from rich.live import Live
@@ -15,6 +21,7 @@ from src.display import (
     build_container_table,
     create_live_display,
     format_dry_run,
+    format_memory,
     format_summary,
 )
 from src.evaluator import (
@@ -24,6 +31,43 @@ from src.evaluator import (
     load_prompt,
     run_evaluations,
 )
+
+
+def _poll_memory(container: Container) -> str:
+    stream: Any = container.stats(stream=True, decode=True)
+    try:
+        stats: dict[str, Any] = next(stream)
+    finally:
+        stream.close()
+    mem = stats.get("memory_stats", {})
+    usage = mem.get("usage", 0)
+    limit = mem.get("limit", 0)
+    if not limit:
+        return ""
+    return format_memory(usage, limit)
+
+
+def _stats_loop(
+    stop_event: threading.Event,
+    client: DockerClient,
+    statuses: dict[str, ContainerStatus],
+    memory_cache: dict[str, str],
+) -> None:
+    _RUNNING = frozenset({"starting", "running"})
+    container_cache: dict[str, Container] = {}
+    while not stop_event.wait(2.0):
+        for name, s in list(statuses.items()):
+            if s.state not in _RUNNING:
+                container_cache.pop(name, None)
+                continue
+            try:
+                if name not in container_cache:
+                    container_cache[name] = client.containers.get(name)
+                result = _poll_memory(container_cache[name])
+                memory_cache[name] = result
+                logger.debug("stats for %s: %s", name, result)
+            except Exception:
+                logger.debug("stats poll failed for %s", name, exc_info=True)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -49,6 +93,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = _build_parser().parse_args()
+    if args.verbose:
+        logging.basicConfig(level=logging.DEBUG, format="%(name)s %(message)s")
     console = Console()
 
     load_dotenv(args.env_file)
@@ -95,6 +141,7 @@ def main() -> None:
 
     statuses: dict[str, ContainerStatus] = {}
     start_times: dict[str, float] = {}
+    memory_cache: dict[str, str] = {}
     progress = Progress()
     total = len(skills) * len(scenarios) if scenarios else len(skills)
     task_id = create_live_display(total, progress)
@@ -108,7 +155,7 @@ def main() -> None:
             ContainerStatus(
                 skill_name=s.skill_name,
                 state=s.state,
-                memory_usage=s.memory_usage,
+                memory_usage=memory_cache.get(s.container_name, ""),
                 duration_seconds=now - start_times.get(s.container_name, now),
                 container_name=s.container_name,
             )
@@ -133,6 +180,13 @@ def main() -> None:
         ticker = threading.Thread(target=_tick, daemon=True)
         ticker.start()
 
+        stats_thread = threading.Thread(
+            target=_stats_loop,
+            args=(stop_event, client, statuses, memory_cache),
+            daemon=True,
+        )
+        stats_thread.start()
+
         def on_status(status: ContainerStatus) -> None:
             if status.state in _RUNNING:
                 start_times.setdefault(status.container_name, time.monotonic())
@@ -151,6 +205,7 @@ def main() -> None:
         )
         stop_event.set()
         ticker.join()
+        stats_thread.join(timeout=3.0)
     total_duration = time.monotonic() - start
 
     console.print(format_summary(results, total_duration))

@@ -3,7 +3,11 @@ from pathlib import Path
 
 from rich.console import Console
 
-from src.display import build_container_table, format_dry_run, format_summary
+from src.display import (
+    build_container_table,
+    format_dry_run,
+    format_summary,
+)
 from src.evaluator import ContainerStatus, EvalResult, SkillConfig
 
 
@@ -121,3 +125,25 @@ def test_format_dry_run_with_scenarios_shows_matrix() -> None:
     assert "2 skills" in text
     assert "3 scenarios" in text
     assert "6 containers" in text
+
+
+def test_format_memory_mib() -> None:
+    from src.display import format_memory
+
+    assert (
+        format_memory(256 * 1024 * 1024, 1024 * 1024 * 1024) == "256M / 1.0G"
+    )
+
+
+def test_format_memory_gib() -> None:
+    from src.display import format_memory
+
+    usage = int(1.5 * 1024 * 1024 * 1024)
+    limit = 2 * 1024 * 1024 * 1024
+    assert format_memory(usage, limit) == "1.5G / 2.0G"
+
+
+def test_format_memory_zero() -> None:
+    from src.display import format_memory
+
+    assert format_memory(0, 512 * 1024 * 1024) == "0M / 512M"

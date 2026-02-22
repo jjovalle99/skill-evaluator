@@ -23,6 +23,19 @@ _STATE_COLORS: dict[str, str] = {
 }
 
 _MAX_PROMPT_DISPLAY = 200
+_GIB = 1024 * 1024 * 1024
+_MIB = 1024 * 1024
+
+
+def _fmt_bytes(n: int) -> str:
+    if n >= _GIB:
+        return f"{n / _GIB:.1f}G"
+    return f"{n // _MIB}M"
+
+
+def format_memory(usage_bytes: int, limit_bytes: int) -> str:
+    """Format memory usage/limit as human-readable string."""
+    return f"{_fmt_bytes(usage_bytes)} / {_fmt_bytes(limit_bytes)}"
 
 
 def build_container_table(statuses: Sequence[ContainerStatus]) -> Table:
