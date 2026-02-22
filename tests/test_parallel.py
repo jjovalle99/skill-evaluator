@@ -35,9 +35,7 @@ def test_runs_all_skills(mock_run: MagicMock, tmp_path: Path) -> None:
     skills = tuple(
         SkillConfig(path=tmp_path / f"s{i}", name=f"s{i}") for i in range(3)
     )
-    mock_run.side_effect = lambda s, c, cl, cb, scenario=None: _fake_result(
-        s.name
-    )
+    mock_run.side_effect = lambda s, c, cl, cb, **kw: _fake_result(s.name)
     client = MagicMock()
 
     results = run_evaluations(
@@ -59,7 +57,7 @@ def test_partial_results_on_keyboard_interrupt(
         c: ContainerConfig,
         cl: MagicMock,
         cb: MagicMock,
-        scenario: object = None,
+        **kw: object,
     ) -> EvalResult:
         nonlocal call_count
         call_count += 1
@@ -91,8 +89,8 @@ def test_scenarios_create_matrix(mock_run: MagicMock, tmp_path: Path) -> None:
         ScenarioConfig(path=tmp_path / f"sc{i}", name=f"sc{i}")
         for i in range(3)
     )
-    mock_run.side_effect = lambda s, c, cl, cb, scenario=None: _fake_result(
-        f"{s.name}/{scenario.name}" if scenario else s.name
+    mock_run.side_effect = lambda s, c, cl, cb, **kw: _fake_result(
+        f"{s.name}/{kw['scenario'].name}" if kw.get("scenario") else s.name
     )
     client = MagicMock()
 
@@ -108,3 +106,73 @@ def test_scenarios_create_matrix(mock_run: MagicMock, tmp_path: Path) -> None:
     assert len(results) == 6
     expected = {f"s{i}/sc{j}" for i in range(2) for j in range(3)}
     assert {r.skill_name for r in results} == expected
+
+
+def test_shutdown_event_stops_queued_work(tmp_path: Path) -> None:
+    import threading
+
+    skills = tuple(
+        SkillConfig(path=tmp_path / f"s{i}", name=f"s{i}") for i in range(5)
+    )
+    client = MagicMock()
+    container = MagicMock()
+    container.wait.return_value = {"StatusCode": 0}
+    container.logs.return_value = b""
+    client.containers.create.return_value = container
+    event = threading.Event()
+    event.set()
+
+    results = run_evaluations(
+        skills,
+        _make_config(),
+        client,
+        lambda s: None,
+        max_workers=2,
+        shutdown_event=event,
+    )
+
+    assert all(r.error == "interrupted" for r in results)
+    container.start.assert_not_called()
+
+
+def test_interrupt_kills_active_containers(tmp_path: Path) -> None:
+    import threading
+    import time
+
+    skills = tuple(
+        SkillConfig(path=tmp_path / f"s{i}", name=f"s{i}") for i in range(3)
+    )
+    client = MagicMock()
+    container = MagicMock()
+    container.name = "test-container"
+    started = threading.Event()
+
+    def slow_wait(**kwargs: object) -> dict[str, int]:
+        started.set()
+        time.sleep(10)
+        return {"StatusCode": 0}
+
+    container.wait.side_effect = slow_wait
+    container.logs.return_value = b""
+    client.containers.create.return_value = container
+
+    def interrupt_after_start() -> None:
+        started.wait(timeout=5)
+        import os
+        import signal
+
+        os.kill(os.getpid(), signal.SIGINT)
+
+    trigger = threading.Thread(target=interrupt_after_start, daemon=True)
+    trigger.start()
+
+    results = run_evaluations(
+        skills,
+        _make_config(),
+        client,
+        lambda s: None,
+        max_workers=1,
+    )
+
+    container.kill.assert_called()
+    trigger.join(timeout=2)
