@@ -31,8 +31,22 @@ uv run python main.py SKILL_DIR [SKILL_DIR ...] --prompt "your task prompt"
 | `--env-file` | `.env` | Path to env file with `CLAUDE_CODE_OAUTH_TOKEN` |
 | `--max-workers` | auto | Override parallel container count |
 | `--output` | — | Export results as markdown files to given directory |
+| `-e`, `--env` | — | Pass env vars to containers (`KEY=VALUE`, repeatable) |
 | `--verbose` | off | Show full stdout/stderr per skill |
 | `--dry-run` | off | Preview config without running containers |
+
+### Environment Variables
+
+Pass arbitrary environment variables to containers with `-e` (mirrors Docker's syntax). Repeatable:
+
+```bash
+uv run python main.py skills/my-skill \
+  -e API_KEY=sk-123 \
+  -e CLAUDE_CODE_SUBAGENT_MODEL=sonnet \
+  --prompt "do the thing"
+```
+
+User-supplied vars are merged with (and override) base env vars like `CLAUDE_CODE_OAUTH_TOKEN`.
 
 ### Example
 

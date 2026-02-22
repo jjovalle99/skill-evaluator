@@ -40,6 +40,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--env-file", type=Path, default=Path(".env"))
     parser.add_argument("--max-workers", type=int, default=None)
     parser.add_argument("--name", default=None)
+    parser.add_argument(
+        "-e", "--env", action="append", default=[], metavar="KEY=VALUE"
+    )
     parser.add_argument("--flags", default="")
     parser.add_argument("--scenario", nargs="+", type=Path, default=None)
     parser.add_argument("--output", type=Path, default=None)
@@ -62,12 +65,13 @@ def main() -> None:
 
     import shlex
 
-    from src.evaluator import discover_scenarios
+    from src.evaluator import discover_scenarios, parse_env_vars
 
     skills = discover_skills(args.skills, name_override=args.name)
     scenarios = discover_scenarios(args.scenario) if args.scenario else ()
     prompt = load_prompt(args.prompt, Path("prompt.md"))
     extra_flags = tuple(shlex.split(args.flags))
+    extra_env = parse_env_vars(args.env)
 
     if args.dry_run:
         console.print(
@@ -80,6 +84,7 @@ def main() -> None:
                 max_workers=args.max_workers,
                 extra_flags=extra_flags,
                 scenarios=scenarios,
+                extra_env=extra_env or None,
             )
         )
         sys.exit(0)
@@ -89,7 +94,7 @@ def main() -> None:
         image=args.image,
         mem_limit=args.memory,
         timeout_seconds=args.timeout,
-        env_vars={"CLAUDE_CODE_OAUTH_TOKEN": token},
+        env_vars={"CLAUDE_CODE_OAUTH_TOKEN": token, **extra_env},
         prompt=prompt,
         extra_flags=extra_flags,
     )

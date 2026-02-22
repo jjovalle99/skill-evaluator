@@ -96,6 +96,19 @@ def load_prompt(prompt_arg: str | None, prompt_file: Path) -> str:
     raise ValueError(f"No prompt provided and {prompt_file} not found")
 
 
+def parse_env_vars(pairs: Sequence[str]) -> dict[str, str]:
+    """Parse KEY=VALUE pairs into a dict."""
+    result: dict[str, str] = {}
+    for pair in pairs:
+        if "=" not in pair:
+            raise ValueError(f"Invalid env var (missing '='): {pair!r}")
+        key, value = pair.split("=", maxsplit=1)
+        if not key:
+            raise ValueError(f"Invalid env var (empty key): {pair!r}")
+        result[key] = value
+    return result
+
+
 _MEM_PATTERN = re.compile(r"^(\d+)([mg])$", re.IGNORECASE)
 
 _MEM_MULTIPLIERS: dict[str, int] = {

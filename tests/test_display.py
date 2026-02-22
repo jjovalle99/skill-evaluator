@@ -121,3 +121,36 @@ def test_format_dry_run_with_scenarios_shows_matrix() -> None:
     assert "2 skills" in text
     assert "3 scenarios" in text
     assert "6 containers" in text
+
+
+def test_format_dry_run_with_extra_env() -> None:
+    skills = (SkillConfig(path=Path("/tmp/a"), name="s"),)
+    text = _render(
+        format_dry_run(
+            skills=skills,
+            image="img",
+            memory="1g",
+            timeout=60,
+            prompt="test",
+            max_workers=None,
+            extra_env={"API_KEY": "secret", "DEBUG": "1"},
+        )
+    )
+    assert "API_KEY" in text
+    assert "DEBUG" in text
+
+
+def test_format_dry_run_without_extra_env() -> None:
+    skills = (SkillConfig(path=Path("/tmp/a"), name="s"),)
+    text = _render(
+        format_dry_run(
+            skills=skills,
+            image="img",
+            memory="1g",
+            timeout=60,
+            prompt="test",
+            max_workers=None,
+        )
+    )
+    assert "Env:" in text
+    assert "(none)" in text
