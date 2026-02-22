@@ -63,7 +63,10 @@ def discover_skills(
 def load_prompt(prompt_arg: str | None, prompt_file: Path) -> str:
     """Return CLI prompt if given, else read prompt_file. Raise if neither available."""
     if prompt_arg is not None:
-        return prompt_arg
+        p = Path(prompt_arg)
+        if not p.is_file():
+            raise FileNotFoundError(f"Prompt file not found: {prompt_arg}")
+        return p.read_text().strip()
     if prompt_file.is_file():
         return prompt_file.read_text().strip()
     raise ValueError(f"No prompt provided and {prompt_file} not found")
