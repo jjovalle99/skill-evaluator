@@ -2,8 +2,8 @@
 set -euo pipefail
 
 uv run python main.py \
-  /Users/juanovalle/work_repos/code-review-skill/code-review-v0 \
-  /Users/juanovalle/work_repos/code-review-skill/code-review-v1 \
+  skill-evaluator/skills-to-test/code-review-v0 \
+  skill-evaluator/skills-to-test/code-review-v1 \
   --name "/code-review" \
   --prompt "/code-review" \
   --scenario scenarios/* \
