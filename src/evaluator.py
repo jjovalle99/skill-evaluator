@@ -246,6 +246,7 @@ def run_evaluations(
     on_status: Callable[[ContainerStatus], None],
     max_workers: int | None = None,
     scenarios: Sequence[ScenarioConfig] = (),
+    on_result: Callable[[EvalResult], None] | None = None,
 ) -> tuple[EvalResult, ...]:
     """Run evaluations in parallel, returning results (partial on KeyboardInterrupt)."""
     pairs: list[tuple[SkillConfig, ScenarioConfig | None]] = (
@@ -269,7 +270,10 @@ def run_evaluations(
                 for skill, scenario in pairs
             }
             for future in as_completed(futures):
-                results.append(future.result())
+                result = future.result()
+                results.append(result)
+                if on_result is not None:
+                    on_result(result)
     except KeyboardInterrupt:
         pass
     return tuple(results)

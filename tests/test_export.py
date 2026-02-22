@@ -84,3 +84,24 @@ def test_markdown_contains_all_fields(tmp_path: Path) -> None:
     assert "standard output" in content
     assert "## stderr" in content
     assert "standard error" in content
+
+
+def test_export_result_writes_single_file(tmp_path: Path) -> None:
+    from src.display import export_result
+
+    result = EvalResult(
+        skill_name="single-skill",
+        exit_code=0,
+        stdout="output",
+        stderr="",
+        duration_seconds=3.2,
+        error=None,
+    )
+    export_result(result, tmp_path)
+
+    md_file = tmp_path / "single-skill.md"
+    assert md_file.exists()
+    content = md_file.read_text()
+    assert "# single-skill" in content
+    assert "| Exit Code | 0 |" in content
+    assert "| Duration | 3.2s |" in content
