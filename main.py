@@ -80,7 +80,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--image", default="docker-skill-evaluator:minimal")
     parser.add_argument("--memory", default="1g")
     parser.add_argument("--timeout", type=int, default=300)
-    parser.add_argument("--prompt", default=None)
+    parser.add_argument("--prompt", required=True)
     parser.add_argument("--env-file", type=Path, default=Path(".env"))
     parser.add_argument("--max-workers", type=int, default=None)
     parser.add_argument("--name", default=None)
@@ -115,7 +115,7 @@ def main() -> None:
 
     skills = discover_skills(args.skills, name_override=args.name)
     scenarios = discover_scenarios(args.scenario) if args.scenario else ()
-    prompt = load_prompt(args.prompt, Path("prompt.md"))
+    prompt = load_prompt(args.prompt)
     extra_flags = tuple(shlex.split(args.flags))
     extra_env = parse_env_vars(args.env)
 

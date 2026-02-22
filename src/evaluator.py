@@ -84,16 +84,12 @@ def discover_skills(
     return tuple(skills)
 
 
-def load_prompt(prompt_arg: str | None, prompt_file: Path) -> str:
-    """Return CLI prompt if given, else read prompt_file. Raise if neither available."""
-    if prompt_arg is not None:
-        p = Path(prompt_arg)
-        if p.is_file():
-            return p.read_text().strip()
-        return prompt_arg
-    if prompt_file.is_file():
-        return prompt_file.read_text().strip()
-    raise ValueError(f"No prompt provided and {prompt_file} not found")
+def load_prompt(prompt_arg: str) -> str:
+    """Read prompt from file if path exists, else treat as literal string."""
+    p = Path(prompt_arg)
+    if p.is_file():
+        return p.read_text().strip()
+    return prompt_arg
 
 
 def parse_env_vars(pairs: Sequence[str]) -> dict[str, str]:
