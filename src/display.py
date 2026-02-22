@@ -96,17 +96,17 @@ def format_summary(
     results: Sequence[EvalResult], total_duration: float
 ) -> RenderableType:
     """Format final summary as a rich Panel."""
-    passed = sum(1 for r in results if r.error is None)
-    failed = len(results) - passed
+    succeeded = sum(1 for r in results if r.error is None)
+    errors = len(results) - succeeded
     lines: list[str] = [
-        f"Total: {len(results)} | Passed: [green]{passed}[/green] | Failed: [red]{failed}[/red]",
+        f"Total: {len(results)} | Succeeded: [green]{succeeded}[/green] | Errors: [red]{errors}[/red]",
         f"Duration: {total_duration:.1f}s",
         "",
     ]
     for r in results:
         if r.error is None:
-            status = "[green]PASS[/green]"
+            status = "[green]OK[/green]"
         else:
-            status = f"[red]FAIL ({r.error})[/red]"
+            status = f"[red]ERROR ({r.error})[/red]"
         lines.append(f"  {r.skill_name}: {status} ({r.duration_seconds:.1f}s)")
     return Panel("\n".join(lines), title="Summary", border_style="blue")
