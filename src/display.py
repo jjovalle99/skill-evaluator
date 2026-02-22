@@ -18,6 +18,11 @@ from src.evaluator import (
 def _format_result_markdown(result: EvalResult) -> str:
     """Format a single EvalResult as markdown."""
     error_display = result.error or "none"
+    peak_display = (
+        _fmt_bytes(result.peak_memory_bytes)
+        if result.peak_memory_bytes
+        else "N/A"
+    )
     return (
         f"# {result.skill_name}\n"
         f"\n"
@@ -25,6 +30,7 @@ def _format_result_markdown(result: EvalResult) -> str:
         f"|-------|-------|\n"
         f"| Exit Code | {result.exit_code} |\n"
         f"| Duration | {result.duration_seconds:.1f}s |\n"
+        f"| Peak Memory | {peak_display} |\n"
         f"| Error | {error_display} |\n"
         f"\n"
         f"## stdout\n"
@@ -58,7 +64,6 @@ _STATE_COLORS: dict[str, str] = {
     "completed": "green",
     "failed": "red",
     "timeout": "red",
-    "oom": "red",
 }
 
 _MAX_PROMPT_DISPLAY = 200
@@ -167,5 +172,12 @@ def format_summary(
             status = "[green]OK[/green]"
         else:
             status = f"[red]ERROR ({r.error})[/red]"
-        lines.append(f"  {r.skill_name}: {status} ({r.duration_seconds:.1f}s)")
+        peak = (
+            f" peak:{_fmt_bytes(r.peak_memory_bytes)}"
+            if r.peak_memory_bytes
+            else ""
+        )
+        lines.append(
+            f"  {r.skill_name}: {status} ({r.duration_seconds:.1f}s{peak})"
+        )
     return Panel("\n".join(lines), title="Summary", border_style="blue")

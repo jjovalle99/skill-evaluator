@@ -35,8 +35,8 @@ def test_runs_all_skills(mock_run: MagicMock, tmp_path: Path) -> None:
     skills = tuple(
         SkillConfig(path=tmp_path / f"s{i}", name=f"s{i}") for i in range(3)
     )
-    mock_run.side_effect = lambda s, c, cl, cb, scenario=None: _fake_result(
-        s.name
+    mock_run.side_effect = lambda s, c, cl, cb, scenario=None, **_kw: (
+        _fake_result(s.name)
     )
     client = MagicMock()
 
@@ -60,6 +60,7 @@ def test_partial_results_on_keyboard_interrupt(
         cl: MagicMock,
         cb: MagicMock,
         scenario: object = None,
+        **_kw: object,
     ) -> EvalResult:
         nonlocal call_count
         call_count += 1
@@ -91,8 +92,8 @@ def test_scenarios_create_matrix(mock_run: MagicMock, tmp_path: Path) -> None:
         ScenarioConfig(path=tmp_path / f"sc{i}", name=f"sc{i}")
         for i in range(3)
     )
-    mock_run.side_effect = lambda s, c, cl, cb, scenario=None: _fake_result(
-        f"{s.name}/{scenario.name}" if scenario else s.name
+    mock_run.side_effect = lambda s, c, cl, cb, scenario=None, **_kw: (
+        _fake_result(f"{s.name}/{scenario.name}" if scenario else s.name)
     )
     client = MagicMock()
 

@@ -180,3 +180,26 @@ def test_format_memory_zero() -> None:
     from src.display import format_memory
 
     assert format_memory(0, 512 * 1024 * 1024) == "0M / 512M"
+
+
+def test_format_summary_shows_peak() -> None:
+    _MIB = 1024 * 1024
+    results = [
+        EvalResult(
+            "skill-a", 0, "", "", 5.0, None, peak_memory_bytes=300 * _MIB
+        ),
+    ]
+    text = _render(format_summary(results, 5.0))
+    assert "300M" in text
+
+
+def test_export_includes_peak_memory() -> None:
+    from src.display import _format_result_markdown
+
+    _MIB = 1024 * 1024
+    result = EvalResult(
+        "skill-a", 0, "out", "err", 5.0, None, peak_memory_bytes=300 * _MIB
+    )
+    md = _format_result_markdown(result)
+    assert "Peak Memory" in md
+    assert "300M" in md
