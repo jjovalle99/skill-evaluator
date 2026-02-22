@@ -43,3 +43,15 @@ def test_parser_scenario_accepts_multiple() -> None:
 
     args = _build_parser().parse_args(["skills/foo", "--scenario", "a", "b"])
     assert args.scenario == [Path("a"), Path("b")]
+
+
+def test_parser_output_defaults_none() -> None:
+    args = _build_parser().parse_args(["skills/foo"])
+    assert args.output is None
+
+
+def test_parser_output_parses_as_path() -> None:
+    from pathlib import Path
+
+    args = _build_parser().parse_args(["skills/foo", "--output", "/tmp/out"])
+    assert args.output == Path("/tmp/out")

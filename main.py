@@ -42,6 +42,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--name", default=None)
     parser.add_argument("--flags", default="")
     parser.add_argument("--scenario", nargs="+", type=Path, default=None)
+    parser.add_argument("--output", type=Path, default=None)
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     return parser
@@ -154,6 +155,12 @@ def main() -> None:
     total_duration = time.monotonic() - start
 
     console.print(format_summary(results, total_duration))
+
+    if args.output is not None:
+        from src.display import export_results
+
+        export_results(results, args.output)
+        console.print(f"Results exported to {args.output}", style="green")
 
     if args.verbose:
         for r in results:

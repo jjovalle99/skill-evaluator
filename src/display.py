@@ -1,4 +1,5 @@
 from collections.abc import Sequence
+from pathlib import Path
 
 from rich.console import RenderableType
 from rich.panel import Panel
@@ -12,6 +13,44 @@ from src.evaluator import (
     ScenarioConfig,
     SkillConfig,
 )
+
+
+def _format_result_markdown(result: EvalResult) -> str:
+    """Format a single EvalResult as markdown."""
+    error_display = result.error or "none"
+    return (
+        f"# {result.skill_name}\n"
+        f"\n"
+        f"| Field | Value |\n"
+        f"|-------|-------|\n"
+        f"| Exit Code | {result.exit_code} |\n"
+        f"| Duration | {result.duration_seconds:.1f}s |\n"
+        f"| Error | {error_display} |\n"
+        f"\n"
+        f"## stdout\n"
+        f"\n"
+        f"```\n"
+        f"{result.stdout}\n"
+        f"```\n"
+        f"\n"
+        f"## stderr\n"
+        f"\n"
+        f"```\n"
+        f"{result.stderr}\n"
+        f"```\n"
+    )
+
+
+def export_results(results: Sequence[EvalResult], output_dir: Path) -> None:
+    """Write each result as a markdown file under output_dir."""
+    for result in results:
+        if "/" in result.skill_name:
+            file_path = output_dir / Path(result.skill_name + ".md")
+        else:
+            file_path = output_dir / f"{result.skill_name}.md"
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(_format_result_markdown(result))
+
 
 _STATE_COLORS: dict[str, str] = {
     "starting": "yellow",
