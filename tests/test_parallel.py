@@ -108,3 +108,29 @@ def test_scenarios_create_matrix(mock_run: MagicMock, tmp_path: Path) -> None:
     assert len(results) == 6
     expected = {f"s{i}/sc{j}" for i in range(2) for j in range(3)}
     assert {r.skill_name for r in results} == expected
+
+
+@patch("src.evaluator.run_evaluation")
+def test_on_result_called_per_evaluation(
+    mock_run: MagicMock, tmp_path: Path
+) -> None:
+    skills = tuple(
+        SkillConfig(path=tmp_path / f"s{i}", name=f"s{i}") for i in range(3)
+    )
+    mock_run.side_effect = lambda s, c, cl, cb, scenario=None: _fake_result(
+        s.name
+    )
+    client = MagicMock()
+    collected: list[EvalResult] = []
+
+    run_evaluations(
+        skills,
+        _make_config(),
+        client,
+        lambda s: None,
+        max_workers=1,
+        on_result=lambda r: collected.append(r),
+    )
+
+    assert len(collected) == 3
+    assert {r.skill_name for r in collected} == {"s0", "s1", "s2"}

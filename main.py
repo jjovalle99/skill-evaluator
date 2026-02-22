@@ -201,6 +201,13 @@ def main() -> None:
                 progress.advance(task_id)
             _refresh(live)
 
+        on_result = None
+        if args.output is not None:
+            from src.display import export_result
+
+            output_dir: Path = args.output
+            on_result = lambda r: export_result(r, output_dir)
+
         results = run_evaluations(
             skills,
             config,
@@ -208,6 +215,7 @@ def main() -> None:
             on_status,
             args.max_workers,
             scenarios=scenarios,
+            on_result=on_result,
         )
         stop_event.set()
         ticker.join()
@@ -217,9 +225,6 @@ def main() -> None:
     console.print(format_summary(results, total_duration))
 
     if args.output is not None:
-        from src.display import export_results
-
-        export_results(results, args.output)
         console.print(f"Results exported to {args.output}", style="green")
 
     if args.verbose:

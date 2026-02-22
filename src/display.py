@@ -41,15 +41,20 @@ def _format_result_markdown(result: EvalResult) -> str:
     )
 
 
+def export_result(result: EvalResult, output_dir: Path) -> None:
+    """Write a single result as a markdown file under output_dir."""
+    if "/" in result.skill_name:
+        file_path = output_dir / Path(result.skill_name + ".md")
+    else:
+        file_path = output_dir / f"{result.skill_name}.md"
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    file_path.write_text(_format_result_markdown(result))
+
+
 def export_results(results: Sequence[EvalResult], output_dir: Path) -> None:
     """Write each result as a markdown file under output_dir."""
     for result in results:
-        if "/" in result.skill_name:
-            file_path = output_dir / Path(result.skill_name + ".md")
-        else:
-            file_path = output_dir / f"{result.skill_name}.md"
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-        file_path.write_text(_format_result_markdown(result))
+        export_result(result, output_dir)
 
 
 _STATE_COLORS: dict[str, str] = {
