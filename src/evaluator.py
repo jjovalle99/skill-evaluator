@@ -31,6 +31,7 @@ class ContainerStatus:
     state: str
     memory_usage: str
     duration_seconds: float
+    container_name: str = ""
 
 
 @dataclass(frozen=True)
@@ -93,13 +94,14 @@ def calculate_max_workers(client: DockerClient, mem_limit: str) -> int:
 
 
 def _make_status(
-    skill_name: str, state: str, duration: float
+    skill_name: str, state: str, duration: float, container_name: str = ""
 ) -> ContainerStatus:
     return ContainerStatus(
         skill_name=skill_name,
         state=state,
         memory_usage="",
         duration_seconds=duration,
+        container_name=container_name,
     )
 
 
@@ -131,10 +133,13 @@ def run_evaluation(
         working_dir="/workspace",
     )
     try:
-        on_status(_make_status(skill.name, "starting", 0.0))
+        cname: str = container.name or ""
+        on_status(_make_status(skill.name, "starting", 0.0, cname))
         container.start()
         on_status(
-            _make_status(skill.name, "running", time.monotonic() - start)
+            _make_status(
+                skill.name, "running", time.monotonic() - start, cname
+            )
         )
         try:
             wait_result = container.wait(timeout=config.timeout_seconds)
@@ -142,7 +147,7 @@ def run_evaluation(
             with suppress(Exception):
                 container.stop()
             elapsed = time.monotonic() - start
-            on_status(_make_status(skill.name, "timeout", elapsed))
+            on_status(_make_status(skill.name, "timeout", elapsed, cname))
             return EvalResult(
                 skill_name=skill.name,
                 exit_code=-1,
@@ -157,7 +162,7 @@ def run_evaluation(
         elapsed = time.monotonic() - start
         error = _classify_error(exit_code)
         state = "failed" if error else "completed"
-        on_status(_make_status(skill.name, state, elapsed))
+        on_status(_make_status(skill.name, state, elapsed, cname))
         return EvalResult(
             skill_name=skill.name,
             exit_code=exit_code,

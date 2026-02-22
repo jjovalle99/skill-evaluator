@@ -24,6 +24,7 @@ def build_container_table(statuses: Sequence[ContainerStatus]) -> Table:
     """Build a rich Table showing container status rows."""
     table = Table(title="Containers")
     table.add_column("Skill")
+    table.add_column("Container")
     table.add_column("Status")
     table.add_column("Memory")
     table.add_column("Duration")
@@ -31,6 +32,7 @@ def build_container_table(statuses: Sequence[ContainerStatus]) -> Table:
         color = _STATE_COLORS.get(s.state, "white")
         table.add_row(
             s.skill_name,
+            s.container_name,
             Text(s.state, style=color),
             s.memory_usage,
             f"{s.duration_seconds:.1f}s",

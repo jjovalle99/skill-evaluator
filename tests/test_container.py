@@ -122,3 +122,18 @@ def test_status_callbacks(tmp_path: Path) -> None:
     assert "starting" in statuses
     assert "running" in statuses
     assert "completed" in statuses
+
+
+def test_status_callbacks_include_container_name(tmp_path: Path) -> None:
+    skill = _make_skill(tmp_path)
+    config = _make_config()
+    client = MagicMock()
+    container = _make_mock_container(exit_code=0)
+    container.name = "quirky_darwin"
+    client.containers.create.return_value = container
+    from src.evaluator import ContainerStatus
+
+    captured: list[ContainerStatus] = []
+    run_evaluation(skill, config, client, captured.append)
+
+    assert all(s.container_name == "quirky_darwin" for s in captured)

@@ -13,19 +13,27 @@ def _render(renderable: object) -> str:
     return buf.getvalue()
 
 
-def test_build_container_table_columns() -> None:
+def test_build_container_table_has_container_name_column() -> None:
     statuses = [
-        ContainerStatus("skill-a", "running", "128 MiB / 512 MiB", 5.0),
-        ContainerStatus("skill-b", "completed", "0 MiB / 512 MiB", 10.0),
+        ContainerStatus(
+            "skill-a", "running", "128 MiB / 512 MiB", 5.0, "quirky_darwin"
+        ),
+        ContainerStatus(
+            "skill-b", "completed", "0 MiB / 512 MiB", 10.0, "happy_turing"
+        ),
     ]
     table = build_container_table(statuses)
     assert table.row_count == 2
-    assert len(table.columns) == 4
+    assert len(table.columns) == 5
+    text = _render(table)
+    assert "quirky_darwin" in text
+    assert "happy_turing" in text
 
 
 def test_build_container_table_empty() -> None:
     table = build_container_table([])
     assert table.row_count == 0
+    assert len(table.columns) == 5
 
 
 def test_format_summary_content() -> None:

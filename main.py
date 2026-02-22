@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -82,23 +83,57 @@ def main() -> None:
     )
 
     statuses: dict[str, ContainerStatus] = {}
+    start_times: dict[str, float] = {}
     progress = Progress()
     task_id = create_live_display(len(skills), progress)
 
-    def on_status(status: ContainerStatus) -> None:
-        statuses[status.skill_name] = status
-        if status.state in ("completed", "failed", "timeout", "oom"):
-            progress.advance(task_id)
+    _RUNNING = frozenset({"starting", "running"})
+    _TERMINAL = frozenset({"completed", "failed", "timeout", "oom"})
+
+    def _refresh(live: Live) -> None:
+        now = time.monotonic()
+        updated = [
+            ContainerStatus(
+                skill_name=s.skill_name,
+                state=s.state,
+                memory_usage=s.memory_usage,
+                duration_seconds=now - start_times.get(s.container_name, now),
+                container_name=s.container_name,
+            )
+            if s.state in _RUNNING
+            else s
+            for s in statuses.values()
+        ]
+        live.update(Group(build_container_table(updated), progress))
 
     start = time.monotonic()
     with Live(
         Group(build_container_table([]), progress),
         console=console,
-        refresh_per_second=4,
-    ):
+        refresh_per_second=8,
+    ) as live:
+        stop_event = threading.Event()
+
+        def _tick() -> None:
+            while not stop_event.wait(0.25):
+                _refresh(live)
+
+        ticker = threading.Thread(target=_tick, daemon=True)
+        ticker.start()
+
+        def on_status(status: ContainerStatus) -> None:
+            if status.state in _RUNNING:
+                start_times.setdefault(status.container_name, time.monotonic())
+            statuses[status.container_name] = status
+            if status.state in _TERMINAL:
+                progress.advance(task_id)
+            _refresh(live)
+
         results = run_evaluations(
             skills, config, client, on_status, args.max_workers
         )
+        stop_event.set()
+        ticker.join()
     total_duration = time.monotonic() - start
 
     console.print(format_summary(results, total_duration))
