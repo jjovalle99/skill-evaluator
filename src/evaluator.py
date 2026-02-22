@@ -66,6 +66,7 @@ class EvalResult:
     stderr: str
     duration_seconds: float
     error: str | None
+    peak_memory_bytes: int = 0
 
 
 def discover_skills(
@@ -141,10 +142,10 @@ def _make_status(
     )
 
 
-def _classify_error(exit_code: int) -> str | None:
+def _classify_error(exit_code: int, *, oom_killed: bool = False) -> str | None:
     if exit_code == 0:
         return None
-    if exit_code == 137:
+    if oom_killed:
         return "oom_killed"
     return f"nonzero_exit:{exit_code}"
 
@@ -163,6 +164,7 @@ def run_evaluation(
     client: DockerClient,
     on_status: Callable[[ContainerStatus], None],
     scenario: ScenarioConfig | None = None,
+    memory_peak_cache: dict[str, int] | None = None,
 ) -> EvalResult:
     """Run a single skill evaluation in a Docker container."""
     start = time.monotonic()
@@ -220,12 +222,17 @@ def run_evaluation(
                 error="timeout",
             )
         exit_code: int = wait_result["StatusCode"]
+        container.reload()
+        oom_killed: bool = container.attrs.get("State", {}).get(
+            "OOMKilled", False
+        )
         stdout = container.logs(stdout=True, stderr=False).decode()
         stderr = container.logs(stdout=False, stderr=True).decode()
         elapsed = time.monotonic() - start
-        error = _classify_error(exit_code)
+        error = _classify_error(exit_code, oom_killed=oom_killed)
         state = "failed" if error else "completed"
         on_status(_make_status(result_label, state, elapsed, cname))
+        peak = (memory_peak_cache or {}).get(cname, 0)
         return EvalResult(
             skill_name=result_label,
             exit_code=exit_code,
@@ -233,6 +240,7 @@ def run_evaluation(
             stderr=stderr,
             duration_seconds=elapsed,
             error=error,
+            peak_memory_bytes=peak,
         )
     finally:
         with suppress(Exception):
@@ -247,6 +255,7 @@ def run_evaluations(
     max_workers: int | None = None,
     scenarios: Sequence[ScenarioConfig] = (),
     on_result: Callable[[EvalResult], None] | None = None,
+    memory_peak_cache: dict[str, int] | None = None,
 ) -> tuple[EvalResult, ...]:
     """Run evaluations in parallel, returning results (partial on KeyboardInterrupt)."""
     pairs: list[tuple[SkillConfig, ScenarioConfig | None]] = (
@@ -266,6 +275,7 @@ def run_evaluations(
                     client,
                     on_status,
                     scenario=scenario,
+                    memory_peak_cache=memory_peak_cache,
                 ): skill
                 for skill, scenario in pairs
             }

@@ -33,18 +33,16 @@ from src.evaluator import (
 )
 
 
-def _poll_memory(container: Container) -> str:
+def _poll_memory(container: Container) -> tuple[int, int]:
     stream: Any = container.stats(stream=True, decode=True)
     try:
         stats: dict[str, Any] = next(stream)
     finally:
         stream.close()
     mem = stats.get("memory_stats", {})
-    usage = mem.get("usage", 0)
-    limit = mem.get("limit", 0)
-    if not limit:
-        return ""
-    return format_memory(usage, limit)
+    usage: int = mem.get("usage", 0)
+    limit: int = mem.get("limit", 0)
+    return usage, limit
 
 
 def _stats_loop(
@@ -52,6 +50,7 @@ def _stats_loop(
     client: DockerClient,
     statuses: dict[str, ContainerStatus],
     memory_cache: dict[str, str],
+    memory_peak_cache: dict[str, int],
 ) -> None:
     _RUNNING = frozenset({"starting", "running"})
     container_cache: dict[str, Container] = {}
@@ -63,9 +62,13 @@ def _stats_loop(
             try:
                 if name not in container_cache:
                     container_cache[name] = client.containers.get(name)
-                result = _poll_memory(container_cache[name])
-                memory_cache[name] = result
-                logger.debug("stats for %s: %s", name, result)
+                usage, limit = _poll_memory(container_cache[name])
+                if limit:
+                    memory_cache[name] = format_memory(usage, limit)
+                    memory_peak_cache[name] = max(
+                        memory_peak_cache.get(name, 0), usage
+                    )
+                logger.debug("stats for %s: %s/%s", name, usage, limit)
             except Exception:
                 logger.debug("stats poll failed for %s", name, exc_info=True)
 
@@ -148,6 +151,7 @@ def main() -> None:
     statuses: dict[str, ContainerStatus] = {}
     start_times: dict[str, float] = {}
     memory_cache: dict[str, str] = {}
+    memory_peak_cache: dict[str, int] = {}
     progress = Progress()
     total = len(skills) * len(scenarios) if scenarios else len(skills)
     task_id = create_live_display(total, progress)
@@ -188,7 +192,13 @@ def main() -> None:
 
         stats_thread = threading.Thread(
             target=_stats_loop,
-            args=(stop_event, client, statuses, memory_cache),
+            args=(
+                stop_event,
+                client,
+                statuses,
+                memory_cache,
+                memory_peak_cache,
+            ),
             daemon=True,
         )
         stats_thread.start()
@@ -216,6 +226,7 @@ def main() -> None:
             args.max_workers,
             scenarios=scenarios,
             on_result=on_result,
+            memory_peak_cache=memory_peak_cache,
         )
         stop_event.set()
         ticker.join()

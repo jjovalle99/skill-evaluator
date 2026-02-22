@@ -30,12 +30,15 @@ def _make_config(
     )
 
 
-def _make_mock_container(exit_code: int = 0) -> MagicMock:
+def _make_mock_container(
+    exit_code: int = 0, oom_killed: bool = False
+) -> MagicMock:
     container = MagicMock()
     container.wait.return_value = {"StatusCode": exit_code}
     container.logs.side_effect = lambda stdout, stderr: (
         b"out" if stdout else b"err"
     )
+    container.attrs = {"State": {"OOMKilled": oom_killed}}
     return container
 
 
@@ -76,7 +79,7 @@ def test_oom(tmp_path: Path) -> None:
     skill = _make_skill(tmp_path)
     config = _make_config()
     client = MagicMock()
-    container = _make_mock_container(exit_code=137)
+    container = _make_mock_container(exit_code=137, oom_killed=True)
     client.containers.create.return_value = container
 
     result = run_evaluation(skill, config, client, lambda s: None)
@@ -291,3 +294,47 @@ def test_scenario_with_name_override_label_uses_dirname(
     call_kwargs = client.containers.create.call_args[1]
     skill_mount = f"/home/claude/.claude/skills/{skill.name}"
     assert call_kwargs["volumes"][str(skill.path)]["bind"] == skill_mount
+
+
+def test_exit_137_not_oom(tmp_path: Path) -> None:
+    skill = _make_skill(tmp_path)
+    config = _make_config()
+    client = MagicMock()
+    container = _make_mock_container(exit_code=137, oom_killed=False)
+    client.containers.create.return_value = container
+
+    result = run_evaluation(skill, config, client, lambda s: None)
+
+    assert result.error == "nonzero_exit:137"
+    assert result.exit_code == 137
+
+
+def test_peak_memory_from_cache(tmp_path: Path) -> None:
+    skill = _make_skill(tmp_path)
+    config = _make_config()
+    client = MagicMock()
+    container = _make_mock_container(exit_code=0)
+    container.name = "my_container"
+    client.containers.create.return_value = container
+
+    result = run_evaluation(
+        skill,
+        config,
+        client,
+        lambda s: None,
+        memory_peak_cache={"my_container": 500_000_000},
+    )
+
+    assert result.peak_memory_bytes == 500_000_000
+
+
+def test_peak_memory_zero_without_cache(tmp_path: Path) -> None:
+    skill = _make_skill(tmp_path)
+    config = _make_config()
+    client = MagicMock()
+    container = _make_mock_container(exit_code=0)
+    client.containers.create.return_value = container
+
+    result = run_evaluation(skill, config, client, lambda s: None)
+
+    assert result.peak_memory_bytes == 0
