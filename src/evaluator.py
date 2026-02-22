@@ -128,7 +128,7 @@ def run_evaluation(
         mem_limit=config.mem_limit,
         memswap_limit=config.mem_limit,
         network_mode="bridge",
-        working_dir=skill_dest,
+        working_dir="/workspace",
     )
     try:
         on_status(_make_status(skill.name, "starting", 0.0))

@@ -106,7 +106,7 @@ def test_mount_path_uses_skill_name(tmp_path: Path) -> None:
     assert call_kwargs["volumes"] == {
         str(skill.path): {"bind": expected_dest, "mode": "ro"}
     }
-    assert call_kwargs["working_dir"] == expected_dest
+    assert call_kwargs["working_dir"] == "/workspace"
 
 
 def test_status_callbacks(tmp_path: Path) -> None:
