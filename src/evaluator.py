@@ -23,6 +23,7 @@ class ContainerConfig:
     timeout_seconds: int
     env_vars: dict[str, str]
     prompt: str
+    extra_flags: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -127,7 +128,7 @@ def run_evaluation(
     skill_dest = f"/home/claude/.claude/skills/{skill.name}"
     container = client.containers.create(
         image=config.image,
-        command=["--print", config.prompt],
+        command=[*config.extra_flags, "--print", config.prompt],
         volumes={str(skill.path): {"bind": skill_dest, "mode": "ro"}},
         environment=config.env_vars,
         mem_limit=config.mem_limit,

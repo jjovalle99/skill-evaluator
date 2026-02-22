@@ -40,6 +40,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--env-file", type=Path, default=Path(".env"))
     parser.add_argument("--max-workers", type=int, default=None)
     parser.add_argument("--name", default=None)
+    parser.add_argument("--flags", default="")
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     return parser
@@ -57,8 +58,11 @@ def main() -> None:
         )
         sys.exit(1)
 
+    import shlex
+
     skills = discover_skills(args.skills, name_override=args.name)
     prompt = load_prompt(args.prompt, Path("prompt.md"))
+    extra_flags = tuple(shlex.split(args.flags))
 
     if args.dry_run:
         console.print(
@@ -69,6 +73,7 @@ def main() -> None:
                 timeout=args.timeout,
                 prompt=prompt,
                 max_workers=args.max_workers,
+                extra_flags=extra_flags,
             )
         )
         sys.exit(0)
@@ -80,6 +85,7 @@ def main() -> None:
         timeout_seconds=args.timeout,
         env_vars={"CLAUDE_CODE_OAUTH_TOKEN": token},
         prompt=prompt,
+        extra_flags=extra_flags,
     )
 
     statuses: dict[str, ContainerStatus] = {}

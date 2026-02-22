@@ -13,13 +13,16 @@ def _make_skill(tmp_path: Path, name: str = "test-skill") -> SkillConfig:
     return SkillConfig(path=d, name=name)
 
 
-def _make_config() -> ContainerConfig:
+def _make_config(
+    extra_flags: tuple[str, ...] = (),
+) -> ContainerConfig:
     return ContainerConfig(
         image="test:latest",
         mem_limit="512m",
         timeout_seconds=300,
         env_vars={"CLAUDE_CODE_OAUTH_TOKEN": "sk-test"},
         prompt="do the thing",
+        extra_flags=extra_flags,
     )
 
 
@@ -137,3 +140,38 @@ def test_status_callbacks_include_container_name(tmp_path: Path) -> None:
     run_evaluation(skill, config, client, captured.append)
 
     assert all(s.container_name == "quirky_darwin" for s in captured)
+
+
+def test_extra_flags_prepended_to_command(tmp_path: Path) -> None:
+    skill = _make_skill(tmp_path)
+    config = _make_config(
+        extra_flags=("--model", "sonnet-4", "--max-turns", "5")
+    )
+    client = MagicMock()
+    container = _make_mock_container(exit_code=0)
+    client.containers.create.return_value = container
+
+    run_evaluation(skill, config, client, lambda s: None)
+
+    call_kwargs = client.containers.create.call_args[1]
+    assert call_kwargs["command"] == [
+        "--model",
+        "sonnet-4",
+        "--max-turns",
+        "5",
+        "--print",
+        "do the thing",
+    ]
+
+
+def test_empty_extra_flags_keeps_default_command(tmp_path: Path) -> None:
+    skill = _make_skill(tmp_path)
+    config = _make_config()
+    client = MagicMock()
+    container = _make_mock_container(exit_code=0)
+    client.containers.create.return_value = container
+
+    run_evaluation(skill, config, client, lambda s: None)
+
+    call_kwargs = client.containers.create.call_args[1]
+    assert call_kwargs["command"] == ["--print", "do the thing"]

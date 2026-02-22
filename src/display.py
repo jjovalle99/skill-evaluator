@@ -52,6 +52,7 @@ def format_dry_run(
     timeout: int,
     prompt: str,
     max_workers: int | None,
+    extra_flags: tuple[str, ...] = (),
 ) -> RenderableType:
     """Format dry-run config preview as a rich Panel."""
     workers_display = str(max_workers) if max_workers is not None else "auto"
@@ -60,11 +61,13 @@ def format_dry_run(
         if len(prompt) <= _MAX_PROMPT_DISPLAY
         else prompt[:_MAX_PROMPT_DISPLAY] + "..."
     )
+    flags_display = " ".join(extra_flags) if extra_flags else "(none)"
     lines = [
         f"[bold]Image:[/bold]       {image}",
         f"[bold]Memory:[/bold]      {memory}",
         f"[bold]Timeout:[/bold]     {timeout}s",
         f"[bold]Workers:[/bold]     {workers_display}",
+        f"[bold]Flags:[/bold]       {flags_display}",
         "",
         "[bold]Skills:[/bold]",
         *[f"  [cyan]{s.name}[/cyan]  {s.path}" for s in skills],

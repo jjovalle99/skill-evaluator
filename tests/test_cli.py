@@ -19,3 +19,15 @@ def test_parser_name_arg() -> None:
 def test_parser_name_defaults_none() -> None:
     args = _build_parser().parse_args(["skills/foo"])
     assert args.name is None
+
+
+def test_parser_flags_splits_into_tuple() -> None:
+    args = _build_parser().parse_args(
+        ["skills/foo", "--flags", "--model sonnet-4 --max-turns 5"]
+    )
+    assert args.flags == "--model sonnet-4 --max-turns 5"
+
+
+def test_parser_flags_defaults_empty() -> None:
+    args = _build_parser().parse_args(["skills/foo"])
+    assert args.flags == ""
