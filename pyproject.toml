@@ -1,0 +1,19 @@
+[project]
+name = "docker-skill-evaluator"
+version = "0.1.0"
+description = "Test Claude Code skills in isolated Docker containers"
+readme = "README.md"
+requires-python = ">=3.12.8"
+dependencies = [
+    "docker>=7.0.0",
+ "python-dotenv>=1.2.1",
+ "rich>=13.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "mypy>=1.9",
+    "types-docker>=7.1.0.20260109",
+    "types-requests>=2.32.4.20260107",
+]
