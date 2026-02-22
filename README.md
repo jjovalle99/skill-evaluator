@@ -30,6 +30,7 @@ uv run python main.py SKILL_DIR [SKILL_DIR ...] --prompt "your task prompt"
 | `--prompt` | — | Task prompt (overrides `prompt.md`) |
 | `--env-file` | `.env` | Path to env file with `CLAUDE_CODE_OAUTH_TOKEN` |
 | `--max-workers` | auto | Override parallel container count |
+| `--output` | — | Export results as markdown files to given directory |
 | `--verbose` | off | Show full stdout/stderr per skill |
 | `--dry-run` | off | Preview config without running containers |
 
@@ -41,6 +42,19 @@ mkdir -p /tmp/test-skill && echo "hello" > /tmp/test-skill/test.txt
 echo "CLAUDE_CODE_OAUTH_TOKEN=sk-ant-..." > .env
 
 uv run python main.py /tmp/test-skill --prompt "list files in workspace"
+```
+
+### Exporting results
+
+Use `--output` to save each result as a markdown file. Scenario-based runs produce nested directories:
+
+```bash
+uv run python main.py skills/code-review --scenario scenarios/* --output results/
+
+# results/
+#   code-review/
+#     missing-null-check.md
+#     unused-import.md
 ```
 
 ## Tests
