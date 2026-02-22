@@ -14,3 +14,6 @@ wheels/
 .env.*
 *.pem
 *.key
+
+# Skills to test
+skills-to-test/
