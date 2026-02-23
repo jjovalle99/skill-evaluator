@@ -1,9 +1,12 @@
+import asyncio
 import json
 import logging
 import pathlib
 import re
 from dataclasses import dataclass
 from typing import Any, cast
+
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +98,13 @@ class ScenarioResult:
     unmatched_findings: tuple[Finding, ...]
 
 
+class MatchResponse(BaseModel):
+    """Structured response from the LLM matcher."""
+
+    reasoning: str = Field(max_length=2000)
+    matches: list[int | None]
+
+
 def score_scenario(
     scenario_name: str,
     skill_name: str,
@@ -126,7 +136,7 @@ def score_scenario(
     )
 
 
-def match_findings_llm(
+async def match_findings_llm(
     findings: list[Finding],
     ground_truth: GroundTruth,
     client: object,
@@ -163,7 +173,7 @@ def match_findings_llm(
         f"Actual findings:\n{json.dumps(actual, indent=2)}\n\n"
         "For each actual finding (in order), output the index (0-based) of the "
         "matching expected finding, or null if it doesn't match any.\n"
-        'Respond with JSON: {"matches": [0, null, 1, ...]}'
+        "First explain your reasoning, then output matches."
     )
     logger.debug(
         "Calling Mistral model=%s to match %d findings against %d expected",
@@ -171,15 +181,22 @@ def match_findings_llm(
         len(actual),
         len(expected),
     )
-    response = cast(Any, client).chat.complete(
+    response = await cast(Any, client).chat.complete_async(
         model=model,
         messages=[{"role": "user", "content": prompt}],
-        response_format={"type": "json_object"},
+        temperature=0,
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "MatchResponse",
+                "schema": MatchResponse.model_json_schema(),
+            },
+        },
     )
     content: str = response.choices[0].message.content
     logger.debug("Mistral response: %s", content)
-    parsed: dict[str, list[int | None]] = json.loads(content)
-    return parsed["matches"]
+    parsed = MatchResponse.model_validate_json(content)
+    return parsed.matches
 
 
 def load_ground_truth(scenario_dir: pathlib.Path) -> GroundTruth:
@@ -205,7 +222,7 @@ def load_ground_truth(scenario_dir: pathlib.Path) -> GroundTruth:
     )
 
 
-def evaluate_results(
+async def evaluate_results(
     results_dir: pathlib.Path,
     scenarios_dir: pathlib.Path,
     client: object,
@@ -213,7 +230,9 @@ def evaluate_results(
 ) -> list[ScenarioResult]:
     """Discover result files, load ground truth, match, and score."""
     skill_name = results_dir.name
-    scored: list[ScenarioResult] = []
+
+    # Parse all scenarios and collect those needing LLM matching
+    scenarios: list[tuple[str, list[Finding], GroundTruth, float]] = []
     for md_file in sorted(results_dir.glob("*.md")):
         scenario_name = md_file.stem
         scenario_dir = scenarios_dir / scenario_name
@@ -221,11 +240,19 @@ def evaluate_results(
             continue
         findings, duration = parse_result_markdown(md_file.read_text())
         gt = load_ground_truth(scenario_dir)
+        scenarios.append((scenario_name, findings, gt, duration))
+
+    # Run all LLM calls concurrently
+    async def _match(findings: list[Finding], gt: GroundTruth) -> list[int | None]:
         if findings and gt.expected_findings:
-            matches = match_findings_llm(findings, gt, client, model)
-        else:
-            matches = [None] * len(findings)
-        scored.append(
-            score_scenario(scenario_name, skill_name, findings, gt, matches, duration)
-        )
-    return scored
+            return await match_findings_llm(findings, gt, client, model)
+        return [None] * len(findings)
+
+    all_matches = await asyncio.gather(
+        *(_match(findings, gt) for _, findings, gt, _ in scenarios)
+    )
+
+    return [
+        score_scenario(name, skill_name, findings, gt, matches, duration)
+        for (name, findings, gt, duration), matches in zip(scenarios, all_matches)
+    ]

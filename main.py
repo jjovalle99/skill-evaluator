@@ -273,6 +273,8 @@ def _run_command(args: argparse.Namespace) -> None:
 
 def _evaluate_command(args: argparse.Namespace) -> None:
     """Handle the 'evaluate' subcommand."""
+    import asyncio
+
     from mistralai import Mistral
 
     from src.evaluate import evaluate_results
@@ -286,7 +288,9 @@ def _evaluate_command(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     client = Mistral(api_key=api_key)
-    results = evaluate_results(args.results_dir, args.scenarios, client, args.model)
+    results = asyncio.run(
+        evaluate_results(args.results_dir, args.scenarios, client, args.model)
+    )
     print_evaluation_report(results, console=console)
 
     if args.output is not None:

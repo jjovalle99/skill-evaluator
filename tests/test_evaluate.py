@@ -247,8 +247,8 @@ def test_score_scenario_missed_finding() -> None:
     assert result.recall == 0.5
 
 
-def test_match_findings_llm_parses_response() -> None:
-    from unittest.mock import MagicMock
+async def test_match_findings_llm_parses_response() -> None:
+    from unittest.mock import AsyncMock, MagicMock
 
     from src.evaluate import match_findings_llm
 
@@ -278,21 +278,25 @@ def test_match_findings_llm_parses_response() -> None:
         ),
     ]
 
-    mock_client = MagicMock()
     mock_response = MagicMock()
     mock_choice = MagicMock()
-    mock_choice.message.content = '{"matches": [0, null]}'
+    mock_choice.message.content = (
+        '{"reasoning": "Finding 0 matches expected 0", "matches": [0, null]}'
+    )
     mock_response.choices = [mock_choice]
-    mock_client.chat.complete.return_value = mock_response
+    mock_client = MagicMock()
+    mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
 
-    result = match_findings_llm(findings, gt, mock_client, "mistral-small-latest")
+    result = await match_findings_llm(findings, gt, mock_client, "mistral-small-latest")
     assert result == [0, None]
-    mock_client.chat.complete.assert_called_once()
+    mock_client.chat.complete_async.assert_called_once()
+    call_kwargs = mock_client.chat.complete_async.call_args.kwargs
+    assert call_kwargs["temperature"] == 0
 
 
-def test_evaluate_results_orchestrates(tmp_path: Path) -> None:
+async def test_evaluate_results_orchestrates(tmp_path: Path) -> None:
     import json as _json
-    from unittest.mock import MagicMock
+    from unittest.mock import AsyncMock, MagicMock
 
     from src.evaluate import evaluate_results
 
@@ -335,14 +339,14 @@ def test_evaluate_results_orchestrates(tmp_path: Path) -> None:
     (scenario / "ground_truth.json").write_text(_json.dumps(gt))
 
     # Mock Mistral client
-    mock_client = MagicMock()
     mock_response = MagicMock()
     mock_choice = MagicMock()
-    mock_choice.message.content = '{"matches": [0]}'
+    mock_choice.message.content = '{"reasoning": "Match found", "matches": [0]}'
     mock_response.choices = [mock_choice]
-    mock_client.chat.complete.return_value = mock_response
+    mock_client = MagicMock()
+    mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
 
-    results = evaluate_results(
+    results = await evaluate_results(
         results_dir, scenarios_dir, mock_client, "mistral-small-latest"
     )
     assert len(results) == 1
