@@ -1,0 +1,38 @@
+{
+  "expected_findings": [
+    {
+      "category": "security",
+      "severity": "critical",
+      "file": "src/lib.rs",
+      "line_range": [26, 29],
+      "description": "Unsafe undefined behavior: get_raw_ptr returns raw pointer to a local String that is dropped, resulting in a dangling pointer",
+      "keywords": ["unsafe", "undefined behavior", "dangling pointer", "raw pointer", "use-after-free", "drop"],
+      "consolidated_with": []
+    },
+    {
+      "category": "correctness",
+      "severity": "medium",
+      "file": "src/lib.rs",
+      "line_range": [31, 33],
+      "description": "Panic on missing key: unwrap() on Option from user-controlled key lookup will panic at runtime",
+      "keywords": ["panic", "unwrap", "Option", "expect", "error handling"],
+      "consolidated_with": []
+    },
+    {
+      "category": "performance",
+      "severity": "low",
+      "file": "src/lib.rs",
+      "line_range": [22, 24],
+      "description": "Unnecessary allocation: get_or_default returns String via .to_string() instead of borrowing with &str",
+      "keywords": ["allocation", "to_string", "clone", "borrow", "performance"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 5,
+  "metadata": {
+    "language": "rust",
+    "difficulty": "hard",
+    "description": "Rust config parser with dangling pointer, panic on unwrap, and unnecessary allocation"
+  }
+}

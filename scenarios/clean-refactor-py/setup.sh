@@ -56,13 +56,14 @@ import re
 
 def _validate_name(name: str) -> str | None:
     name = name.strip()
+    error = None
     if len(name) < 2:
-        return "Name must be at least 2 characters"
+        error = "Name must be at least 2 characters"
     if len(name) > 100:
-        return "Name must be at most 100 characters"
+        error = "Name must be at most 100 characters"
     if not re.match(r"^[a-zA-Z\s\-']+$", name):
-        return "Name contains invalid characters"
-    return None
+        error = "Name contains invalid characters"
+    return error
 
 
 _EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
@@ -76,15 +77,16 @@ def _validate_email(email: str) -> str | None:
 
 
 def _validate_password(password: str) -> str | None:
+    error = None
     if len(password) < 8:
-        return "Password must be at least 8 characters"
+        error = "Password must be at least 8 characters"
     if not re.search(r"[A-Z]", password):
-        return "Password must contain an uppercase letter"
+        error = "Password must contain an uppercase letter"
     if not re.search(r"[a-z]", password):
-        return "Password must contain a lowercase letter"
+        error = "Password must contain a lowercase letter"
     if not re.search(r"\d", password):
-        return "Password must contain a digit"
-    return None
+        error = "Password must contain a digit"
+    return error
 
 
 def _validate_age(age: str) -> str | None:

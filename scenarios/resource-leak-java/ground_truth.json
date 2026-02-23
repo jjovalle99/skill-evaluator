@@ -1,0 +1,29 @@
+{
+  "expected_findings": [
+    {
+      "category": "correctness",
+      "severity": "high",
+      "file": "src/main/java/com/app/ReportExporter.java",
+      "line_range": [14, 29],
+      "description": "Unclosed Connection, Statement, ResultSet, and file streams in exportUserReport — resources leak on success and exception paths",
+      "keywords": ["resource leak", "Connection", "close", "try-with-resources", "finally"],
+      "consolidated_with": [1]
+    },
+    {
+      "category": "correctness",
+      "severity": "high",
+      "file": "src/main/java/com/app/ReportExporter.java",
+      "line_range": [31, 44],
+      "description": "Unclosed Connection, Statement, and ResultSet in exportToMemory — resources leak on success and exception paths",
+      "keywords": ["resource leak", "Connection", "close", "try-with-resources", "finally"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 4,
+  "metadata": {
+    "language": "java",
+    "difficulty": "medium",
+    "description": "Report exporter with unclosed database and file resources"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "expected_findings": [
+    {
+      "category": "security",
+      "severity": "critical",
+      "file": "src/components/UserProfile.tsx",
+      "line_range": [16, 19],
+      "description": "XSS via dangerouslySetInnerHTML rendering unsanitized user bio",
+      "keywords": ["XSS", "cross-site scripting", "dangerouslySetInnerHTML", "sanitize"],
+      "consolidated_with": []
+    },
+    {
+      "category": "security",
+      "severity": "critical",
+      "file": "src/components/SearchResults.tsx",
+      "line_range": [11, 11],
+      "description": "XSS via dangerouslySetInnerHTML rendering unsanitized search query",
+      "keywords": ["XSS", "cross-site scripting", "dangerouslySetInnerHTML", "sanitize"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 4,
+  "metadata": {
+    "language": "typescript",
+    "difficulty": "easy",
+    "description": "React components with XSS via dangerouslySetInnerHTML"
+  }
+}

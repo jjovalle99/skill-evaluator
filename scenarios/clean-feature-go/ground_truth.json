@@ -1,0 +1,10 @@
+{
+  "expected_findings": [],
+  "expected_clean": true,
+  "max_acceptable_findings": 0,
+  "metadata": {
+    "language": "go",
+    "difficulty": "easy",
+    "description": "Clean bookmark CRUD feature with proper concurrency and input limits"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "expected_findings": [],
+  "expected_clean": true,
+  "max_acceptable_findings": 0,
+  "metadata": {
+    "language": "python",
+    "difficulty": "easy",
+    "description": "Clean refactor extracting validation functions with preserved semantics"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "expected_findings": [
+    {
+      "category": "security",
+      "severity": "critical",
+      "file": "payments.js",
+      "line_range": [3, 3],
+      "description": "Hardcoded Stripe live secret key (sk_live_) in source code",
+      "keywords": ["hardcoded", "secret", "API key", "sk_live", "credential", "environment variable"],
+      "consolidated_with": [1]
+    },
+    {
+      "category": "security",
+      "severity": "critical",
+      "file": "payments.js",
+      "line_range": [4, 4],
+      "description": "Hardcoded Stripe webhook secret (whsec_) in source code",
+      "keywords": ["hardcoded", "secret", "webhook", "whsec", "credential", "environment variable"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 4,
+  "metadata": {
+    "language": "javascript",
+    "difficulty": "easy",
+    "description": "Payment integration with hardcoded Stripe API keys"
+  }
+}

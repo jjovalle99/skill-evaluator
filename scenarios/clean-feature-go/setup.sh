@@ -103,6 +103,7 @@ func RegisterBookmarkRoutes(mux *http.ServeMux, store *BookmarkStore) {
 	})
 
 	mux.HandleFunc("POST /bookmarks", func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1 MB
 		var input struct {
 			URL   string `json:"url"`
 			Title string `json:"title"`

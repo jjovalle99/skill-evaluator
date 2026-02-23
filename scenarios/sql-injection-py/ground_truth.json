@@ -1,0 +1,20 @@
+{
+  "expected_findings": [
+    {
+      "category": "security",
+      "severity": "critical",
+      "file": "app.py",
+      "line_range": [34, 36],
+      "description": "SQL injection via f-string interpolation in search_users query instead of parameterized query",
+      "keywords": ["SQL injection", "f-string", "parameterized", "LIKE", "execute"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 2,
+  "metadata": {
+    "language": "python",
+    "difficulty": "easy",
+    "description": "SQLite user repository with SQL injection in search function"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "expected_findings": [
+    {
+      "category": "security",
+      "severity": "critical",
+      "file": "server.py",
+      "line_range": [17, 22],
+      "description": "Command injection via subprocess.run with shell=True and unsanitized f-string input in nslookup endpoint",
+      "keywords": ["command injection", "shell=True", "subprocess", "f-string", "unsanitized"],
+      "consolidated_with": [1]
+    },
+    {
+      "category": "security",
+      "severity": "critical",
+      "file": "server.py",
+      "line_range": [30, 35],
+      "description": "Command injection via subprocess.run with shell=True and unsanitized f-string input in ping endpoint",
+      "keywords": ["command injection", "shell=True", "subprocess", "f-string", "unsanitized"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 4,
+  "metadata": {
+    "language": "python",
+    "difficulty": "easy",
+    "description": "HTTP server with command injection in nslookup and ping endpoints"
+  }
+}

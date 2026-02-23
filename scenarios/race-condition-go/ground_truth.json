@@ -1,0 +1,29 @@
+{
+  "expected_findings": [
+    {
+      "category": "correctness",
+      "severity": "critical",
+      "file": "internal/cache/sessions.go",
+      "line_range": [15, 46],
+      "description": "SessionStore uses bare maps without mutex protection, causing data races under concurrent access",
+      "keywords": ["race condition", "concurrent", "map", "mutex", "sync", "data race"],
+      "consolidated_with": []
+    },
+    {
+      "category": "correctness",
+      "severity": "critical",
+      "file": "internal/cache/ratelimit.go",
+      "line_range": [10, 37],
+      "description": "RateLimiter uses bare maps without mutex protection, causing data races under concurrent access",
+      "keywords": ["race condition", "concurrent", "map", "mutex", "sync", "data race"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 4,
+  "metadata": {
+    "language": "go",
+    "difficulty": "medium",
+    "description": "Cache components with race conditions from unprotected concurrent map access"
+  }
+}

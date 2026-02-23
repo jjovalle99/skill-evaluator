@@ -1,0 +1,10 @@
+{
+  "expected_findings": [],
+  "expected_clean": true,
+  "max_acceptable_findings": 0,
+  "metadata": {
+    "language": "typescript",
+    "difficulty": "easy",
+    "description": "Clean test additions for math and string utility modules"
+  }
+}
