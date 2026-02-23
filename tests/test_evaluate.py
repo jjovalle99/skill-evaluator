@@ -558,3 +558,119 @@ async def test_evaluate_results_orchestrates(tmp_path: Path) -> None:
     assert results[0].true_positives == 1
     assert results[0].false_positives == 0
     mock_client.chat.complete_async.assert_not_called()
+
+
+def _make_scenario_result(
+    scenario: str = "test",
+    skill: str = "v0",
+    tp: int = 1,
+    fp: int = 0,
+    fn: int = 0,
+    duplicates: int = 0,
+    precision: float = 1.0,
+    recall: float = 1.0,
+    f05: float = 1.0,
+    duration: float = 100.0,
+) -> "ScenarioResult":
+    from src.evaluate import ScenarioResult
+
+    return ScenarioResult(
+        scenario_name=scenario,
+        skill_name=skill,
+        true_positives=tp,
+        false_positives=fp,
+        false_negatives=fn,
+        precision=precision,
+        recall=recall,
+        f05=f05,
+        duration_seconds=duration,
+        duplicates=duplicates,
+        findings=(),
+        matched_expected=(),
+        unmatched_findings=(),
+    )
+
+
+def test_aggregate_trials_computes_mean_and_std() -> None:
+    from src.evaluate import MetricStats, ScenarioTrialResult, aggregate_trials
+
+    trial1 = [
+        _make_scenario_result(
+            "s1",
+            tp=2,
+            fp=1,
+            fn=0,
+            duplicates=0,
+            precision=0.67,
+            recall=1.0,
+            f05=0.74,
+            duration=100.0,
+        )
+    ]
+    trial2 = [
+        _make_scenario_result(
+            "s1",
+            tp=3,
+            fp=0,
+            fn=1,
+            duplicates=1,
+            precision=1.0,
+            recall=0.75,
+            f05=0.94,
+            duration=120.0,
+        )
+    ]
+    trial3 = [
+        _make_scenario_result(
+            "s1",
+            tp=2,
+            fp=0,
+            fn=0,
+            duplicates=0,
+            precision=1.0,
+            recall=1.0,
+            f05=1.0,
+            duration=110.0,
+        )
+    ]
+
+    results = aggregate_trials([trial1, trial2, trial3])
+    assert len(results) == 1
+    r = results[0]
+    assert isinstance(r, ScenarioTrialResult)
+    assert r.scenario_name == "s1"
+    assert r.skill_name == "v0"
+
+    # Check mean values
+    assert r.true_positives.mean == pytest.approx((2 + 3 + 2) / 3)
+    assert r.false_positives.mean == pytest.approx((1 + 0 + 0) / 3)
+    assert r.false_negatives.mean == pytest.approx((0 + 1 + 0) / 3)
+    assert r.duplicates.mean == pytest.approx((0 + 1 + 0) / 3)
+    assert r.precision.mean == pytest.approx((0.67 + 1.0 + 1.0) / 3)
+    assert r.recall.mean == pytest.approx((1.0 + 0.75 + 1.0) / 3)
+    assert r.f05.mean == pytest.approx((0.74 + 0.94 + 1.0) / 3)
+    assert r.duration_seconds.mean == pytest.approx((100 + 120 + 110) / 3)
+
+    # Check std > 0 for metrics that vary
+    assert r.true_positives.std > 0
+    assert r.precision.std > 0
+    assert isinstance(r.true_positives, MetricStats)
+
+
+def test_aggregate_trials_multiple_scenarios() -> None:
+    from src.evaluate import aggregate_trials
+
+    trial1 = [
+        _make_scenario_result("s1", tp=1, duration=10.0),
+        _make_scenario_result("s2", tp=2, duration=20.0),
+    ]
+    trial2 = [
+        _make_scenario_result("s1", tp=3, duration=30.0),
+        _make_scenario_result("s2", tp=4, duration=40.0),
+    ]
+
+    results = aggregate_trials([trial1, trial2])
+    assert len(results) == 2
+    by_name = {r.scenario_name: r for r in results}
+    assert by_name["s1"].true_positives.mean == pytest.approx(2.0)
+    assert by_name["s2"].true_positives.mean == pytest.approx(3.0)

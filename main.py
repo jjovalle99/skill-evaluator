@@ -118,6 +118,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output", type=Path, default=None, help="Path for JSON report output"
     )
     eval_p.add_argument("--env-file", type=Path, default=Path(".env"))
+    eval_p.add_argument(
+        "--trials",
+        type=int,
+        default=1,
+        help="Run evaluation N times and report mean ± std",
+    )
 
     return parser
 
@@ -277,8 +283,13 @@ def _evaluate_command(args: argparse.Namespace) -> None:
 
     from mistralai import Mistral
 
-    from src.evaluate import evaluate_results
-    from src.report import export_report_json, print_evaluation_report
+    from src.evaluate import aggregate_trials, evaluate_results
+    from src.report import (
+        export_report_json,
+        export_trial_report_json,
+        print_evaluation_report,
+        print_trial_report,
+    )
 
     load_dotenv(args.env_file)
     api_key = os.environ.get("MISTRAL_API_KEY", "")
@@ -288,14 +299,27 @@ def _evaluate_command(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     client = Mistral(api_key=api_key)
-    results = asyncio.run(
-        evaluate_results(args.results_dir, args.scenarios, client, args.model)
-    )
-    print_evaluation_report(results, console=console)
 
-    if args.output is not None:
-        export_report_json(results, args.output)
-        console.print(f"Report exported to {args.output}", style="green")
+    if args.trials == 1:
+        results = asyncio.run(
+            evaluate_results(args.results_dir, args.scenarios, client, args.model)
+        )
+        print_evaluation_report(results, console=console)
+        if args.output is not None:
+            export_report_json(results, args.output)
+            console.print(f"Report exported to {args.output}", style="green")
+    else:
+        all_trials = [
+            asyncio.run(
+                evaluate_results(args.results_dir, args.scenarios, client, args.model)
+            )
+            for _ in range(args.trials)
+        ]
+        trial_results = aggregate_trials(all_trials)
+        print_trial_report(trial_results, console=console)
+        if args.output is not None:
+            export_trial_report_json(trial_results, args.output, trials=args.trials)
+            console.print(f"Report exported to {args.output}", style="green")
 
 
 def main() -> None:

@@ -165,3 +165,16 @@ def test_log_level_accepts_standard_levels(level: str) -> None:
 def test_log_level_invalid_raises() -> None:
     with pytest.raises(SystemExit):
         _build_parser().parse_args(["--log-level", "TRACE", *_BASE])
+
+
+_EVAL_BASE = ["evaluate", "results/v0", "--scenarios", "scenarios/"]
+
+
+def test_evaluate_trials_defaults_to_one() -> None:
+    args = _build_parser().parse_args(_EVAL_BASE)
+    assert args.trials == 1
+
+
+def test_evaluate_trials_parses_custom_value() -> None:
+    args = _build_parser().parse_args([*_EVAL_BASE, "--trials", "5"])
+    assert args.trials == 5

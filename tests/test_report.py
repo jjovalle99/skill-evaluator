@@ -5,7 +5,10 @@ from pathlib import Path
 from rich.console import Console
 
 from src.evaluate import Finding, ScenarioResult
-from src.report import export_report_json, print_evaluation_report
+from src.report import (
+    export_report_json,
+    print_evaluation_report,
+)
 
 
 def _make_result(
@@ -72,3 +75,59 @@ def test_export_report_json_writes_valid_json(tmp_path: Path) -> None:
     assert data["scenarios"][0]["true_positives"] == 1
     assert "aggregate" in data
     assert "f05" in data["aggregate"]
+
+
+def _make_trial_result(
+    scenario: str = "s1",
+    skill: str = "v0",
+    precision_mean: float = 0.83,
+    precision_std: float = 0.05,
+    recall_mean: float = 0.90,
+    recall_std: float = 0.10,
+) -> "ScenarioTrialResult":
+    from src.evaluate import MetricStats, ScenarioTrialResult
+
+    return ScenarioTrialResult(
+        scenario_name=scenario,
+        skill_name=skill,
+        true_positives=MetricStats(mean=2.0, std=0.5),
+        false_positives=MetricStats(mean=1.0, std=0.3),
+        false_negatives=MetricStats(mean=0.5, std=0.2),
+        duplicates=MetricStats(mean=0.3, std=0.1),
+        precision=MetricStats(mean=precision_mean, std=precision_std),
+        recall=MetricStats(mean=recall_mean, std=recall_std),
+        f05=MetricStats(mean=0.85, std=0.04),
+        duration_seconds=MetricStats(mean=100.2, std=3.1),
+    )
+
+
+def test_print_trial_report_contains_plus_minus_format() -> None:
+    from src.report import print_trial_report
+
+    results = [_make_trial_result()]
+    buf = StringIO()
+    console = Console(file=buf, width=160)
+    print_trial_report(results, console=console)
+    output = buf.getvalue()
+    assert "0.83 +/- 0.05" in output
+    assert "0.90 +/- 0.10" in output
+    assert "100.2 +/- 3.1" in output
+    assert "TOTAL" in output
+
+
+def test_export_trial_report_json_structure(tmp_path: Path) -> None:
+    from src.report import export_trial_report_json
+
+    results = [_make_trial_result()]
+    out = tmp_path / "trial_report.json"
+    export_trial_report_json(results, out, trials=3)
+    data = json.loads(out.read_text())
+
+    assert data["trials"] == 3
+    assert len(data["scenarios"]) == 1
+    s = data["scenarios"][0]
+    assert s["scenario_name"] == "s1"
+    assert s["precision"] == {"mean": 0.83, "std": 0.05}
+    assert s["recall"] == {"mean": 0.90, "std": 0.10}
+    assert "aggregate" in data
+    assert "precision" in data["aggregate"]

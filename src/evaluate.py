@@ -101,6 +101,70 @@ class ScenarioResult:
     unmatched_findings: tuple[Finding, ...]
 
 
+@dataclass(frozen=True)
+class MetricStats:
+    """Mean and standard deviation for a metric across trials."""
+
+    mean: float
+    std: float
+
+
+@dataclass(frozen=True)
+class ScenarioTrialResult:
+    """Aggregated evaluation result for a scenario across multiple trials."""
+
+    scenario_name: str
+    skill_name: str
+    true_positives: MetricStats
+    false_positives: MetricStats
+    false_negatives: MetricStats
+    duplicates: MetricStats
+    precision: MetricStats
+    recall: MetricStats
+    f05: MetricStats
+    duration_seconds: MetricStats
+
+
+_METRIC_FIELDS = (
+    "true_positives",
+    "false_positives",
+    "false_negatives",
+    "duplicates",
+    "precision",
+    "recall",
+    "f05",
+    "duration_seconds",
+)
+
+
+def aggregate_trials(
+    all_trials: list[list[ScenarioResult]],
+) -> list[ScenarioTrialResult]:
+    """Aggregate multiple trial runs into mean/std per scenario."""
+    from collections import defaultdict
+    from statistics import mean, stdev
+
+    grouped: dict[str, list[ScenarioResult]] = defaultdict(list)
+    for trial in all_trials:
+        for result in trial:
+            grouped[result.scenario_name].append(result)
+
+    def _stats(values: list[float]) -> MetricStats:
+        return MetricStats(mean=mean(values), std=stdev(values))
+
+    return [
+        ScenarioTrialResult(
+            scenario_name=name,
+            skill_name=results[0].skill_name,
+            **{
+                field: _stats([getattr(r, field) for r in results])
+                for field in _METRIC_FIELDS
+            },
+        )
+        for name, results in grouped.items()
+    ]
+
+
 def count_duplicates(findings: list[Finding]) -> int:
     """Count pairs of findings on the same file with overlapping line ranges."""
     return sum(
