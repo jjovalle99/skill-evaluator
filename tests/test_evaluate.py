@@ -316,6 +316,145 @@ def test_count_duplicates_different_files() -> None:
     assert count_duplicates(findings) == 0
 
 
+async def test_match_deterministic_skips_llm_when_all_match() -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from src.evaluate import match_findings_llm
+
+    gt = GroundTruth(
+        expected_findings=(
+            ExpectedFinding(
+                "security", "critical", "app.py", (34, 36), "SQL injection", ("SQL",)
+            ),
+        ),
+        expected_clean=False,
+        max_acceptable_findings=2,
+        language="python",
+        difficulty="easy",
+    )
+    # Finding on same file, line_range (32,35) overlaps with expected (34,36)
+    findings = [
+        Finding(
+            "security",
+            "critical",
+            100,
+            "app.py",
+            (32, 35),
+            "SQL injection found",
+            "reason",
+        ),
+    ]
+
+    mock_client = MagicMock()
+    mock_client.chat.complete_async = AsyncMock()
+
+    result = await match_findings_llm(findings, gt, mock_client, "mistral-small-latest")
+    assert result == [0]
+    mock_client.chat.complete_async.assert_not_called()
+
+
+async def test_match_partial_deterministic_sends_unmatched_to_llm() -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from src.evaluate import match_findings_llm
+
+    gt = GroundTruth(
+        expected_findings=(
+            ExpectedFinding(
+                "security", "critical", "app.py", (34, 36), "SQL injection", ("SQL",)
+            ),
+            ExpectedFinding(
+                "correctness", "high", "utils.py", (100, 110), "Off-by-one", ("off",)
+            ),
+        ),
+        expected_clean=False,
+        max_acceptable_findings=3,
+        language="python",
+        difficulty="easy",
+    )
+    findings = [
+        # Deterministic match: same file, overlapping line range with expected[0]
+        Finding(
+            "security",
+            "critical",
+            100,
+            "app.py",
+            (33, 35),
+            "SQL injection found",
+            "reason",
+        ),
+        # No deterministic match: different file, no overlap with anything
+        Finding(
+            "correctness", "high", 80, "other.py", (50, 55), "Some issue", "reason"
+        ),
+    ]
+
+    mock_response = MagicMock()
+    mock_choice = MagicMock()
+    # LLM sees only the 1 unmatched finding; returns null (no match)
+    mock_choice.message.content = '{"reasoning": "no match", "matches": [null]}'
+    mock_response.choices = [mock_choice]
+    mock_client = MagicMock()
+    mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
+
+    result = await match_findings_llm(findings, gt, mock_client, "mistral-small-latest")
+    # finding[0] deterministic → 0, finding[1] LLM → None
+    assert result == [0, None]
+    mock_client.chat.complete_async.assert_called_once()
+    # Verify only 1 actual finding was sent in the prompt
+    call_kwargs = mock_client.chat.complete_async.call_args.kwargs
+    prompt_text = call_kwargs["messages"][0]["content"]
+    assert '"other.py"' in prompt_text
+    assert '"app.py"' not in prompt_text  # deterministic match, not sent to LLM
+
+
+async def test_match_findings_llm_prompt_excludes_keywords() -> None:
+    from unittest.mock import AsyncMock, MagicMock
+
+    from src.evaluate import match_findings_llm
+
+    gt = GroundTruth(
+        expected_findings=(
+            ExpectedFinding(
+                "security",
+                "critical",
+                "app.py",
+                (34, 36),
+                "SQL injection",
+                ("SQL", "injection"),
+            ),
+        ),
+        expected_clean=False,
+        max_acceptable_findings=2,
+        language="python",
+        difficulty="easy",
+    )
+    # Different file so no deterministic match — forces LLM call
+    findings = [
+        Finding(
+            "security",
+            "critical",
+            100,
+            "other.py",
+            (1, 2),
+            "SQL injection found",
+            "reason",
+        ),
+    ]
+
+    mock_response = MagicMock()
+    mock_choice = MagicMock()
+    mock_choice.message.content = '{"reasoning": "match", "matches": [0]}'
+    mock_response.choices = [mock_choice]
+    mock_client = MagicMock()
+    mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
+
+    await match_findings_llm(findings, gt, mock_client, "mistral-small-latest")
+    call_kwargs = mock_client.chat.complete_async.call_args.kwargs
+    prompt_text = call_kwargs["messages"][0]["content"]
+    assert "keywords" not in prompt_text
+
+
 async def test_match_findings_llm_parses_response() -> None:
     from unittest.mock import AsyncMock, MagicMock
 
@@ -349,9 +488,9 @@ async def test_match_findings_llm_parses_response() -> None:
 
     mock_response = MagicMock()
     mock_choice = MagicMock()
-    mock_choice.message.content = (
-        '{"reasoning": "Finding 0 matches expected 0", "matches": [0, null]}'
-    )
+    # Finding 0 matches deterministically (same file, overlapping lines).
+    # Only finding 1 goes to LLM — mock returns [null] for that single finding.
+    mock_choice.message.content = '{"reasoning": "no match", "matches": [null]}'
     mock_response.choices = [mock_choice]
     mock_client = MagicMock()
     mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
@@ -407,13 +546,9 @@ async def test_evaluate_results_orchestrates(tmp_path: Path) -> None:
     }
     (scenario / "ground_truth.json").write_text(_json.dumps(gt))
 
-    # Mock Mistral client
-    mock_response = MagicMock()
-    mock_choice = MagicMock()
-    mock_choice.message.content = '{"reasoning": "Match found", "matches": [0]}'
-    mock_response.choices = [mock_choice]
+    # Deterministic match covers this case — LLM should not be called
     mock_client = MagicMock()
-    mock_client.chat.complete_async = AsyncMock(return_value=mock_response)
+    mock_client.chat.complete_async = AsyncMock()
 
     results = await evaluate_results(
         results_dir, scenarios_dir, mock_client, "mistral-small-latest"
@@ -422,3 +557,4 @@ async def test_evaluate_results_orchestrates(tmp_path: Path) -> None:
     assert results[0].scenario_name == "sql-injection-py"
     assert results[0].true_positives == 1
     assert results[0].false_positives == 0
+    mock_client.chat.complete_async.assert_not_called()

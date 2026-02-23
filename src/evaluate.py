@@ -160,6 +160,30 @@ def score_scenario(
     )
 
 
+def _line_ranges_overlap(a: tuple[int, int], b: tuple[int, int]) -> bool:
+    return a[0] <= b[1] and b[0] <= a[1]
+
+
+def _deterministic_pre_match(
+    findings: list[Finding],
+    expected: tuple[ExpectedFinding, ...],
+) -> list[int | None]:
+    """Match findings to expected by same file + overlapping line range."""
+    matches: list[int | None] = [None] * len(findings)
+    used_expected: set[int] = set()
+    for i, f in enumerate(findings):
+        for j, ef in enumerate(expected):
+            if (
+                j not in used_expected
+                and f.file == ef.file
+                and _line_ranges_overlap(f.line_range, ef.line_range)
+            ):
+                matches[i] = j
+                used_expected.add(j)
+                break
+    return matches
+
+
 async def match_findings_llm(
     findings: list[Finding],
     ground_truth: GroundTruth,
@@ -167,6 +191,22 @@ async def match_findings_llm(
     model: str,
 ) -> list[int | None]:
     """Use LLM to match actual findings against expected ground truth entries."""
+
+    # Deterministic pre-matching pass
+    pre_matches = _deterministic_pre_match(findings, ground_truth.expected_findings)
+    if all(m is not None for m in pre_matches) or not findings:
+        return pre_matches
+
+    # Only send unmatched findings to LLM
+    unmatched_indices = [i for i, m in enumerate(pre_matches) if m is None]
+    unmatched_findings = [findings[i] for i in unmatched_indices]
+    # Expected entries not yet claimed by deterministic pass
+    used_expected = {m for m in pre_matches if m is not None}
+    remaining_expected = [
+        (j, ef)
+        for j, ef in enumerate(ground_truth.expected_findings)
+        if j not in used_expected
+    ]
 
     actual = [
         {
@@ -176,19 +216,18 @@ async def match_findings_llm(
             "line_range": list(f.line_range),
             "description": f.description,
         }
-        for f in findings
+        for f in unmatched_findings
     ]
     expected = [
         {
-            "index": i,
+            "index": j,
             "category": ef.category,
             "severity": ef.severity,
             "file": ef.file,
             "line_range": list(ef.line_range),
             "description": ef.description,
-            "keywords": list(ef.keywords),
         }
-        for i, ef in enumerate(ground_truth.expected_findings)
+        for j, ef in remaining_expected
     ]
     prompt = (
         "You are evaluating a code review tool. Match each actual finding to the "
@@ -221,7 +260,11 @@ async def match_findings_llm(
     content: str = response.choices[0].message.content
     logger.debug("Mistral response: %s", content)
     parsed = MatchResponse.model_validate_json(content)
-    return parsed.matches
+
+    # Merge LLM matches back into pre_matches
+    for idx, llm_match in zip(unmatched_indices, parsed.matches):
+        pre_matches[idx] = llm_match
+    return pre_matches
 
 
 def load_ground_truth(scenario_dir: pathlib.Path) -> GroundTruth:
