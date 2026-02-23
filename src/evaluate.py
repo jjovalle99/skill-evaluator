@@ -99,8 +99,6 @@ class ScenarioResult:
 
 
 class MatchResponse(BaseModel):
-    """Structured response from the LLM matcher."""
-
     reasoning: str = Field(max_length=2000)
     matches: list[int | None]
 
@@ -190,6 +188,7 @@ async def match_findings_llm(
             "json_schema": {
                 "name": "MatchResponse",
                 "schema": MatchResponse.model_json_schema(),
+                "strict": True,
             },
         },
     )
