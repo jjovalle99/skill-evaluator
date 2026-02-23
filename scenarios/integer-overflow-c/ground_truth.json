@@ -13,7 +13,7 @@
       "category": "security",
       "severity": "critical",
       "file": "src/decoder.c",
-      "line_range": [12, 20],
+      "line_range": [12, 22],
       "description": "Potential undersized allocation followed by larger memcpy, causing heap buffer overflow",
       "keywords": ["heap overflow", "undersized allocation", "malloc", "memcpy", "buffer overflow"],
       "consolidated_with": []
