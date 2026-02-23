@@ -18,6 +18,12 @@ def _make_result(
 ) -> ScenarioResult:
     precision = tp / (tp + fp) if (tp + fp) > 0 else 1.0
     recall = tp / (tp + fn) if (tp + fn) > 0 else 1.0
+    beta_sq = 0.25
+    f05 = (
+        (1 + beta_sq) * precision * recall / (beta_sq * precision + recall)
+        if (precision + recall) > 0
+        else 0.0
+    )
     return ScenarioResult(
         scenario_name=scenario,
         skill_name=skill,
@@ -26,6 +32,7 @@ def _make_result(
         false_negatives=fn,
         precision=precision,
         recall=recall,
+        f05=f05,
         duration_seconds=duration,
         findings=(
             Finding("security", "critical", 100, "a.py", (1, 2), "desc", "reason"),
@@ -48,6 +55,7 @@ def test_print_evaluation_report_contains_metrics() -> None:
     output = buf.getvalue()
     assert "sql-injection-py" in output
     assert "clean-feature-go" in output
+    assert "F0.5" in output
 
 
 def test_export_report_json_writes_valid_json(tmp_path: Path) -> None:
@@ -62,3 +70,4 @@ def test_export_report_json_writes_valid_json(tmp_path: Path) -> None:
     assert data["scenarios"][0]["scenario_name"] == "sql-injection-py"
     assert data["scenarios"][0]["true_positives"] == 1
     assert "aggregate" in data
+    assert "f05" in data["aggregate"]

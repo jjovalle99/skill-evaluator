@@ -26,6 +26,7 @@ def print_evaluation_report(
         "FN",
         "Precision",
         "Recall",
+        "F0.5",
         "Duration",
     ):
         table.add_column(col)
@@ -39,6 +40,7 @@ def print_evaluation_report(
             str(r.false_negatives),
             f"{r.precision:.2f}",
             f"{r.recall:.2f}",
+            f"{r.f05:.2f}",
             f"{r.duration_seconds:.1f}s",
         )
 
@@ -52,6 +54,15 @@ def print_evaluation_report(
         agg_recall = (
             total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 1.0
         )
+        beta_sq = 0.25
+        agg_f05 = (
+            (1 + beta_sq)
+            * agg_precision
+            * agg_recall
+            / (beta_sq * agg_precision + agg_recall)
+            if (agg_precision + agg_recall) > 0
+            else 0.0
+        )
         durations = [r.duration_seconds for r in results]
         table.add_row(
             "[bold]TOTAL[/bold]",
@@ -61,6 +72,7 @@ def print_evaluation_report(
             str(total_fn),
             f"{agg_precision:.2f}",
             f"{agg_recall:.2f}",
+            f"{agg_f05:.2f}",
             f"avg={mean(durations):.1f}s med={median(durations):.1f}s",
         )
 
@@ -81,6 +93,14 @@ def export_report_json(results: Sequence[ScenarioResult], path: pathlib.Path) ->
     total_tp = sum(r.true_positives for r in results)
     total_fp = sum(r.false_positives for r in results)
     total_fn = sum(r.false_negatives for r in results)
+    agg_p = total_tp / (total_tp + total_fp) if (total_tp + total_fp) > 0 else 1.0
+    agg_r = total_tp / (total_tp + total_fn) if (total_tp + total_fn) > 0 else 1.0
+    beta_sq = 0.25
+    agg_f05 = (
+        (1 + beta_sq) * agg_p * agg_r / (beta_sq * agg_p + agg_r)
+        if (agg_p + agg_r) > 0
+        else 0.0
+    )
     durations = [r.duration_seconds for r in results]
     report = {
         "scenarios": scenarios,
@@ -88,12 +108,9 @@ def export_report_json(results: Sequence[ScenarioResult], path: pathlib.Path) ->
             "total_tp": total_tp,
             "total_fp": total_fp,
             "total_fn": total_fn,
-            "precision": total_tp / (total_tp + total_fp)
-            if (total_tp + total_fp) > 0
-            else 1.0,
-            "recall": total_tp / (total_tp + total_fn)
-            if (total_tp + total_fn) > 0
-            else 1.0,
+            "precision": agg_p,
+            "recall": agg_r,
+            "f05": agg_f05,
             "avg_duration": mean(durations) if durations else 0.0,
             "median_duration": median(durations) if durations else 0.0,
         },

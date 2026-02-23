@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from src.evaluate import (
     ExpectedFinding,
     Finding,
@@ -161,6 +163,7 @@ def test_score_scenario_perfect_match() -> None:
     assert result.false_negatives == 0
     assert result.precision == 1.0
     assert result.recall == 1.0
+    assert result.f05 == 1.0
 
 
 def test_score_scenario_with_false_positive() -> None:
@@ -198,6 +201,7 @@ def test_score_scenario_with_false_positive() -> None:
     assert result.false_negatives == 0
     assert result.precision == 0.5
     assert result.recall == 1.0
+    assert result.f05 == pytest.approx(5 / 9)
 
 
 def test_score_scenario_clean_with_finding_is_all_fp() -> None:
@@ -221,6 +225,7 @@ def test_score_scenario_clean_with_finding_is_all_fp() -> None:
     assert result.false_positives == 1
     assert result.false_negatives == 0
     assert result.precision == 0.0
+    assert result.f05 == 0.0
 
 
 def test_score_scenario_missed_finding() -> None:
@@ -245,6 +250,7 @@ def test_score_scenario_missed_finding() -> None:
     assert result.false_positives == 0
     assert result.false_negatives == 1
     assert result.recall == 0.5
+    assert result.f05 == pytest.approx(5 / 6)
 
 
 async def test_match_findings_llm_parses_response() -> None:

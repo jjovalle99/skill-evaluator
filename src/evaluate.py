@@ -92,6 +92,7 @@ class ScenarioResult:
     false_negatives: int
     precision: float
     recall: float
+    f05: float
     duration_seconds: float
     findings: tuple[Finding, ...]
     matched_expected: tuple[int, ...]
@@ -118,6 +119,12 @@ def score_scenario(
     fn = len(ground_truth.expected_findings) - tp
     precision = tp / (tp + fp) if (tp + fp) > 0 else 1.0
     recall = tp / (tp + fn) if (tp + fn) > 0 else 1.0
+    beta_sq = 0.25  # 0.5²
+    f05 = (
+        (1 + beta_sq) * precision * recall / (beta_sq * precision + recall)
+        if (precision + recall) > 0
+        else 0.0
+    )
     unmatched = tuple(f for f, m in zip(findings, matches) if m is None)
     return ScenarioResult(
         scenario_name=scenario_name,
@@ -127,6 +134,7 @@ def score_scenario(
         false_negatives=fn,
         precision=precision,
         recall=recall,
+        f05=f05,
         duration_seconds=duration,
         findings=tuple(findings),
         matched_expected=tuple(sorted(matched_gt_indices)),
