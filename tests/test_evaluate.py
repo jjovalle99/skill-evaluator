@@ -164,6 +164,7 @@ def test_score_scenario_perfect_match() -> None:
     assert result.precision == 1.0
     assert result.recall == 1.0
     assert result.f05 == 1.0
+    assert result.duplicates == 0
 
 
 def test_score_scenario_with_false_positive() -> None:
@@ -251,6 +252,68 @@ def test_score_scenario_missed_finding() -> None:
     assert result.false_negatives == 1
     assert result.recall == 0.5
     assert result.f05 == pytest.approx(5 / 6)
+
+
+def test_score_scenario_consolidated_with() -> None:
+    from src.evaluate import score_scenario
+
+    gt = GroundTruth(
+        expected_findings=(
+            ExpectedFinding(
+                "security",
+                "critical",
+                "app.py",
+                (10, 12),
+                "SQL injection",
+                ("SQL",),
+                consolidated_with=(1,),
+            ),
+            ExpectedFinding(
+                "security",
+                "high",
+                "app.py",
+                (20, 22),
+                "related injection",
+                ("SQL",),
+                consolidated_with=(),
+            ),
+        ),
+        expected_clean=False,
+        max_acceptable_findings=3,
+        language="python",
+        difficulty="easy",
+    )
+    findings = [
+        Finding(
+            "security", "critical", 100, "app.py", (10, 12), "SQL injection", "reason"
+        ),
+    ]
+    matches = [0]  # only matched GT #0, but #0 consolidates #1
+    result = score_scenario("test", "v0", findings, gt, matches, 5.0)
+    assert result.true_positives == 2
+    assert result.false_negatives == 0
+    assert result.precision == 1.0
+    assert result.recall == 1.0
+
+
+def test_count_duplicates_same_file_overlapping_lines() -> None:
+    from src.evaluate import count_duplicates
+
+    findings = [
+        Finding("security", "critical", 100, "app.py", (10, 15), "desc1", "r1"),
+        Finding("security", "high", 90, "app.py", (12, 17), "desc2", "r2"),
+    ]
+    assert count_duplicates(findings) == 1
+
+
+def test_count_duplicates_different_files() -> None:
+    from src.evaluate import count_duplicates
+
+    findings = [
+        Finding("security", "critical", 100, "app.py", (10, 15), "desc1", "r1"),
+        Finding("security", "high", 90, "other.py", (10, 15), "desc2", "r2"),
+    ]
+    assert count_duplicates(findings) == 0
 
 
 async def test_match_findings_llm_parses_response() -> None:

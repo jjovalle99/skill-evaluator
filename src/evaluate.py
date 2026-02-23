@@ -68,6 +68,7 @@ class ExpectedFinding:
     line_range: tuple[int, int]
     description: str
     keywords: tuple[str, ...]
+    consolidated_with: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -94,9 +95,22 @@ class ScenarioResult:
     recall: float
     f05: float
     duration_seconds: float
+    duplicates: int
     findings: tuple[Finding, ...]
     matched_expected: tuple[int, ...]
     unmatched_findings: tuple[Finding, ...]
+
+
+def count_duplicates(findings: list[Finding]) -> int:
+    """Count pairs of findings on the same file with overlapping line ranges."""
+    return sum(
+        1
+        for i, a in enumerate(findings)
+        for b in findings[i + 1 :]
+        if a.file == b.file
+        and abs(a.line_range[0] - b.line_range[0]) <= 3
+        and abs(a.line_range[1] - b.line_range[1]) <= 3
+    )
 
 
 class MatchResponse(BaseModel):
@@ -114,7 +128,10 @@ def score_scenario(
 ) -> ScenarioResult:
     """Compute TP/FP/FN/precision/recall from findings and match results."""
     matched_gt_indices = {m for m in matches if m is not None}
-    tp = len(matched_gt_indices)
+    expanded = set(matched_gt_indices)
+    for idx in matched_gt_indices:
+        expanded.update(ground_truth.expected_findings[idx].consolidated_with)
+    tp = len(expanded)
     fp = sum(1 for m in matches if m is None)
     fn = len(ground_truth.expected_findings) - tp
     precision = tp / (tp + fp) if (tp + fp) > 0 else 1.0
@@ -136,6 +153,7 @@ def score_scenario(
         recall=recall,
         f05=f05,
         duration_seconds=duration,
+        duplicates=count_duplicates(findings),
         findings=tuple(findings),
         matched_expected=tuple(sorted(matched_gt_indices)),
         unmatched_findings=unmatched,
@@ -219,6 +237,7 @@ def load_ground_truth(scenario_dir: pathlib.Path) -> GroundTruth:
                 line_range=(ef["line_range"][0], ef["line_range"][1]),
                 description=ef["description"],
                 keywords=tuple(ef.get("keywords", ())),
+                consolidated_with=tuple(ef.get("consolidated_with", ())),
             )
             for ef in raw.get("expected_findings", [])
         ),

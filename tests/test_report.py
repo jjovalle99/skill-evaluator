@@ -34,6 +34,7 @@ def _make_result(
         recall=recall,
         f05=f05,
         duration_seconds=duration,
+        duplicates=0,
         findings=(
             Finding("security", "critical", 100, "a.py", (1, 2), "desc", "reason"),
         ),
