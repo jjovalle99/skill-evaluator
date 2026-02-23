@@ -30,7 +30,7 @@ WORKDIR /workspace
 
 FROM base AS minimal
 RUN claude --version
-ENTRYPOINT ["claude"]
+CMD ["claude"]
 
 FROM base AS full
 USER root
