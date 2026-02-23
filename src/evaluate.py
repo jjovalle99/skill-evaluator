@@ -144,10 +144,10 @@ def aggregate_trials(
     from collections import defaultdict
     from statistics import mean, stdev
 
-    grouped: dict[str, list[ScenarioResult]] = defaultdict(list)
+    grouped: dict[tuple[str, str], list[ScenarioResult]] = defaultdict(list)
     for trial in all_trials:
         for result in trial:
-            grouped[result.scenario_name].append(result)
+            grouped[(result.scenario_name, result.skill_name)].append(result)
 
     def _stats(values: list[float]) -> MetricStats:
         return MetricStats(
@@ -156,14 +156,14 @@ def aggregate_trials(
 
     return [
         ScenarioTrialResult(
-            scenario_name=name,
-            skill_name=results[0].skill_name,
+            scenario_name=scenario_name,
+            skill_name=skill_name,
             **{
                 field: _stats([getattr(r, field) for r in results])
                 for field in _METRIC_FIELDS
             },
         )
-        for name, results in grouped.items()
+        for (scenario_name, skill_name), results in grouped.items()
     ]
 
 

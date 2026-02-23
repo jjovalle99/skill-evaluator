@@ -673,6 +673,25 @@ def test_aggregate_trials_multiple_scenarios() -> None:
     assert by_name["s2"].true_positives.mean == pytest.approx(3.0)
 
 
+def test_aggregate_trials_groups_by_scenario_and_skill() -> None:
+    from src.evaluate import aggregate_trials
+
+    trial1 = [
+        _make_scenario_result("s1", skill="v0", tp=1),
+        _make_scenario_result("s1", skill="v1", tp=3),
+    ]
+    trial2 = [
+        _make_scenario_result("s1", skill="v0", tp=2),
+        _make_scenario_result("s1", skill="v1", tp=4),
+    ]
+
+    results = aggregate_trials([trial1, trial2])
+    assert len(results) == 2
+    by_skill = {r.skill_name: r for r in results}
+    assert by_skill["v0"].true_positives.mean == pytest.approx(1.5)
+    assert by_skill["v1"].true_positives.mean == pytest.approx(3.5)
+
+
 def test_aggregate_trials_single_trial_std_zero() -> None:
     from src.evaluate import aggregate_trials
 
