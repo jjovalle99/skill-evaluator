@@ -1,0 +1,29 @@
+{
+  "expected_findings": [
+    {
+      "category": "security",
+      "severity": "critical",
+      "file": "src/main/java/com/acme/importer/ImportController.java",
+      "line_range": [33, 33],
+      "description": "Unsafe deserialization of untrusted input via ObjectInputStream.readObject",
+      "keywords": ["deserialization", "ObjectInputStream", "readObject", "RCE", "untrusted input"],
+      "consolidated_with": []
+    },
+    {
+      "category": "security",
+      "severity": "high",
+      "file": "src/main/java/com/acme/importer/ImportController.java",
+      "line_range": [32, 33],
+      "description": "Missing class allowlist/ObjectInputFilter when creating ObjectInputStream for attacker-controlled payload",
+      "keywords": ["ObjectInputFilter", "allowlist", "class whitelist", "ObjectInputStream", "validation"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 4,
+  "metadata": {
+    "language": "java",
+    "difficulty": "hard",
+    "description": "Java import controller with unsafe deserialization and no class filtering"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "expected_findings": [
+    {
+      "category": "security",
+      "severity": "high",
+      "file": "src/handlers/proxy.ts",
+      "line_range": [20, 20],
+      "description": "SSRF: handler fetches user-supplied URL without host/IP validation",
+      "keywords": ["SSRF", "fetch", "user input", "internal network", "host validation"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 3,
+  "metadata": {
+    "language": "typescript",
+    "difficulty": "medium",
+    "description": "TypeScript proxy endpoint that fetches arbitrary user-supplied URLs"
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "expected_findings": [
+    {
+      "category": "security",
+      "severity": "critical",
+      "file": "worker.py",
+      "line_range": [9, 9],
+      "description": "Command injection risk from os.system with unsanitized user input",
+      "keywords": ["command injection", "os.system", "user input", "shell", "unsafe execution"],
+      "consolidated_with": []
+    },
+    {
+      "category": "correctness",
+      "severity": "high",
+      "file": "worker.py",
+      "line_range": [16, 16],
+      "description": "Bare except swallows KeyboardInterrupt/SystemExit and masks parsing errors",
+      "keywords": ["bare except", "KeyboardInterrupt", "error handling", "swallowed exception", "correctness"],
+      "consolidated_with": [0]
+    },
+    {
+      "category": "resource",
+      "severity": "medium",
+      "file": "worker.py",
+      "line_range": [20, 22],
+      "description": "Temporary file handle is never closed, leaking file descriptors",
+      "keywords": ["resource leak", "tempfile", "file descriptor", "close", "NamedTemporaryFile"],
+      "consolidated_with": []
+    },
+    {
+      "category": "performance",
+      "severity": "low",
+      "file": "worker.py",
+      "line_range": [30, 30],
+      "description": "Regex is recompiled inside a hot loop instead of reusing a precompiled pattern",
+      "keywords": ["performance", "regex", "compile", "loop", "hot path"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 6,
+  "metadata": {
+    "language": "python",
+    "difficulty": "hard",
+    "description": "Single Python module containing mixed security, correctness, resource, and performance issues"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "expected_findings": [
+    {
+      "category": "security",
+      "severity": "high",
+      "file": "src/decoder.c",
+      "line_range": [11, 11],
+      "description": "Integer overflow in width * height using 32-bit arithmetic before allocation",
+      "keywords": ["integer overflow", "width", "height", "size calculation", "allocation"],
+      "consolidated_with": []
+    },
+    {
+      "category": "security",
+      "severity": "critical",
+      "file": "src/decoder.c",
+      "line_range": [12, 20],
+      "description": "Potential undersized allocation followed by larger memcpy, causing heap buffer overflow",
+      "keywords": ["heap overflow", "undersized allocation", "malloc", "memcpy", "buffer overflow"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 4,
+  "metadata": {
+    "language": "c",
+    "difficulty": "medium",
+    "description": "Image decoder path with unchecked multiplication and copy into possibly undersized heap buffer"
+  }
+}

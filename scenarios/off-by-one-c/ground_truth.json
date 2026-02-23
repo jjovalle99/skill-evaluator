@@ -1,0 +1,29 @@
+{
+  "expected_findings": [
+    {
+      "category": "correctness",
+      "severity": "medium",
+      "file": "src/buffer.c",
+      "line_range": [6, 7],
+      "description": "Off-by-one array read: loop uses <= len and reads one element past end",
+      "keywords": ["off-by-one", "array bounds", "<=", "out of bounds", "loop"],
+      "consolidated_with": []
+    },
+    {
+      "category": "correctness",
+      "severity": "medium",
+      "file": "src/buffer.c",
+      "line_range": [19, 19],
+      "description": "Fence-post null termination writes at dst[dst_size], one byte past valid buffer range",
+      "keywords": ["fence-post", "null termination", "out of bounds write", "string", "buffer"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 4,
+  "metadata": {
+    "language": "c",
+    "difficulty": "easy",
+    "description": "C buffer helpers with array and string off-by-one errors"
+  }
+}

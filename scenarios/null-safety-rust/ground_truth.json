@@ -1,0 +1,20 @@
+{
+  "expected_findings": [
+    {
+      "category": "correctness",
+      "severity": "medium",
+      "file": "src/lib.rs",
+      "line_range": [13, 13],
+      "description": "Inconsistent null/Option handling: unwrap() on optional bio can panic in else branch",
+      "keywords": ["Option", "unwrap", "panic", "null safety", "inconsistent handling"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 3,
+  "metadata": {
+    "language": "rust",
+    "difficulty": "easy",
+    "description": "Rust profile formatter with safe Option handling in one branch but unsafe unwrap in another"
+  }
+}

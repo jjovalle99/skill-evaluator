@@ -1,0 +1,29 @@
+{
+  "expected_findings": [
+    {
+      "category": "performance",
+      "severity": "high",
+      "file": "db/repository.py",
+      "line_range": [21, 21],
+      "description": "Creates a new database connection per loop iteration instead of reusing a connection pool",
+      "keywords": ["connection pool", "performance", "sqlite3.connect", "loop", "reuse"],
+      "consolidated_with": []
+    },
+    {
+      "category": "resource",
+      "severity": "high",
+      "file": "db/repository.py",
+      "line_range": [26, 27],
+      "description": "Connection leak on exception path: raised error occurs before conn.close() is reached",
+      "keywords": ["resource leak", "connection", "exception path", "close", "database"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 4,
+  "metadata": {
+    "language": "python",
+    "difficulty": "hard",
+    "description": "Database repository that opens per-item connections and leaks on exceptional path"
+  }
+}

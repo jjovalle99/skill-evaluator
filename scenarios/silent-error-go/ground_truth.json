@@ -1,0 +1,29 @@
+{
+  "expected_findings": [
+    {
+      "category": "correctness",
+      "severity": "high",
+      "file": "internal/state/store.go",
+      "line_range": [20, 20],
+      "description": "Critical file operation error ignored by assigning WriteFile result to blank identifier",
+      "keywords": ["ignored error", "blank identifier", "WriteFile", "critical operation", "error handling"],
+      "consolidated_with": []
+    },
+    {
+      "category": "correctness",
+      "severity": "high",
+      "file": "internal/state/store.go",
+      "line_range": [22, 23],
+      "description": "Rename failure path returns nil error, masking persistence failure",
+      "keywords": ["nil error", "failure path", "Rename", "masked error", "incorrect return"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 4,
+  "metadata": {
+    "language": "go",
+    "difficulty": "medium",
+    "description": "Go snapshot persistence with ignored write errors and incorrect nil return on rename failure"
+  }
+}

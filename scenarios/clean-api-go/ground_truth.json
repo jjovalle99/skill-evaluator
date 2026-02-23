@@ -1,0 +1,10 @@
+{
+  "expected_findings": [],
+  "expected_clean": true,
+  "max_acceptable_findings": 2,
+  "metadata": {
+    "language": "go",
+    "difficulty": "easy",
+    "description": "Clean Go API endpoint with input validation, parameterized SQL queries, and proper resource handling"
+  }
+}

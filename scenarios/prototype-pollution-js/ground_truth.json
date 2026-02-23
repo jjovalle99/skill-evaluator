@@ -1,0 +1,20 @@
+{
+  "expected_findings": [
+    {
+      "category": "security",
+      "severity": "high",
+      "file": "src/merge.js",
+      "line_range": [6, 13],
+      "description": "Recursive merge applies untrusted keys directly, enabling prototype pollution via __proto__/constructor/prototype",
+      "keywords": ["prototype pollution", "deep merge", "__proto__", "constructor", "prototype"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 3,
+  "metadata": {
+    "language": "javascript",
+    "difficulty": "medium",
+    "description": "Node config merge utility vulnerable to prototype pollution through unsafe recursive merge"
+  }
+}

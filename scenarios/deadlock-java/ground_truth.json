@@ -1,0 +1,20 @@
+{
+  "expected_findings": [
+    {
+      "category": "correctness",
+      "severity": "high",
+      "file": "src/main/java/com/bank/TransferService.java",
+      "line_range": [17, 22],
+      "description": "Potential deadlock from inconsistent lock acquisition order between transfer and transferReversal",
+      "keywords": ["deadlock", "lock ordering", "synchronized", "concurrency", "inversion"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 3,
+  "metadata": {
+    "language": "java",
+    "difficulty": "hard",
+    "description": "Transfer service with opposing synchronized lock order across methods"
+  }
+}

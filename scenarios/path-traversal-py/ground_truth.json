@@ -1,0 +1,29 @@
+{
+  "expected_findings": [
+    {
+      "category": "security",
+      "severity": "high",
+      "file": "app.py",
+      "line_range": [32, 33],
+      "description": "Directory traversal via unsanitized filename concatenated into uploads path before file read",
+      "keywords": ["path traversal", "directory traversal", "unsanitized", "open", "uploads"],
+      "consolidated_with": []
+    },
+    {
+      "category": "security",
+      "severity": "medium",
+      "file": "app.py",
+      "line_range": [31, 31],
+      "description": "Missing input validation for user-controlled filename in download endpoint",
+      "keywords": ["input validation", "filename", "request args", "allowlist", "path"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 4,
+  "metadata": {
+    "language": "python",
+    "difficulty": "easy",
+    "description": "Flask file endpoint vulnerable to path traversal via user-supplied download path"
+  }
+}

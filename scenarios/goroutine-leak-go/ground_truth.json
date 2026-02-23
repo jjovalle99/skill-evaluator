@@ -1,0 +1,20 @@
+{
+  "expected_findings": [
+    {
+      "category": "resource",
+      "severity": "high",
+      "file": "internal/worker/processor.go",
+      "line_range": [30, 42],
+      "description": "Early return on error leaves sender goroutines blocked on unbuffered channel, leaking goroutines",
+      "keywords": ["goroutine leak", "unbuffered channel", "blocked send", "early return", "concurrency"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 3,
+  "metadata": {
+    "language": "go",
+    "difficulty": "hard",
+    "description": "Concurrent job processor that leaks goroutines on error path due to blocked channel sends"
+  }
+}

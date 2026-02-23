@@ -1,0 +1,29 @@
+{
+  "expected_findings": [
+    {
+      "category": "security",
+      "severity": "critical",
+      "file": "auth.py",
+      "line_range": [40, 41],
+      "description": "Authentication bypass: exceptions during JWT parsing/verification fall through to protected handler",
+      "keywords": ["auth bypass", "fail open", "exception handling", "JWT", "middleware"],
+      "consolidated_with": []
+    },
+    {
+      "category": "security",
+      "severity": "high",
+      "file": "auth.py",
+      "line_range": [32, 32],
+      "description": "Timing side-channel from direct token comparison using == instead of constant-time compare",
+      "keywords": ["timing leak", "constant time", "compare_digest", "token", "side-channel"],
+      "consolidated_with": []
+    }
+  ],
+  "expected_clean": false,
+  "max_acceptable_findings": 4,
+  "metadata": {
+    "language": "python",
+    "difficulty": "hard",
+    "description": "Auth middleware that fails open on token errors and uses timing-unsafe token comparison"
+  }
+}
