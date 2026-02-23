@@ -4,7 +4,7 @@
       "category": "security",
       "severity": "critical",
       "file": "string_utils.c",
-      "line_range": [36, 39],
+      "line_range": [33, 36],
       "description": "Buffer overflow: strcpy into fixed 64-byte stack buffer with no bounds check on src",
       "keywords": ["buffer overflow", "strcpy", "stack", "bounds check", "strncpy"],
       "consolidated_with": []
@@ -20,11 +20,11 @@
     },
     {
       "category": "correctness",
-      "severity": "low",
+      "severity": "medium",
       "file": "string_utils.c",
-      "line_range": [55, 65],
-      "description": "Memory leak pattern: malloc without documenting caller must free, no ownership convention",
-      "keywords": ["memory leak", "malloc", "free", "ownership", "allocation"],
+      "line_range": [55, 57],
+      "description": "Null pointer dereference: strlen(src) called without NULL check on src parameter in trim",
+      "keywords": ["null pointer", "dereference", "NULL check", "strlen", "trim"],
       "consolidated_with": []
     }
   ],
@@ -33,6 +33,6 @@
   "metadata": {
     "language": "c",
     "difficulty": "medium",
-    "description": "C string utilities with buffer overflow, null dereference, and memory leak"
+    "description": "C string utilities with buffer overflow and null dereference issues"
   }
 }

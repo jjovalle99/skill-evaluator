@@ -51,6 +51,8 @@ git add -A && git commit -q -m "init: registration validation logic"
 
 # Clean refactor: extract validation functions, no behavior change
 cat > validators.py << 'PYTHON'
+from __future__ import annotations
+
 import re
 
 
