@@ -26,10 +26,19 @@
       "description": "Null pointer dereference: strlen(src) called without NULL check on src parameter in trim",
       "keywords": ["null pointer", "dereference", "NULL check", "strlen", "trim"],
       "consolidated_with": []
+    },
+    {
+      "category": "resource",
+      "severity": "high",
+      "file": "string_utils.c",
+      "line_range": [62, 62],
+      "description": "malloc return value not checked before dereference, causing null pointer dereference on allocation failure",
+      "keywords": ["malloc", "NULL", "null check", "allocation", "dereference"],
+      "consolidated_with": []
     }
   ],
   "expected_clean": false,
-  "max_acceptable_findings": 5,
+  "max_acceptable_findings": 6,
   "metadata": {
     "language": "c",
     "difficulty": "medium",

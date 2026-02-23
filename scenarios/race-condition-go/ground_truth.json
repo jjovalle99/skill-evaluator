@@ -17,10 +17,19 @@
       "description": "RateLimiter uses bare maps without mutex protection, causing data races under concurrent access",
       "keywords": ["race condition", "concurrent", "map", "mutex", "sync", "data race"],
       "consolidated_with": []
+    },
+    {
+      "category": "resource",
+      "severity": "high",
+      "file": "internal/cache/ratelimit.go",
+      "line_range": [24, 36],
+      "description": "Expired rate-limit windows are never evicted, causing unbounded memory growth under high-cardinality keys",
+      "keywords": ["memory leak", "eviction", "cleanup", "unbounded growth", "map"],
+      "consolidated_with": []
     }
   ],
   "expected_clean": false,
-  "max_acceptable_findings": 4,
+  "max_acceptable_findings": 5,
   "metadata": {
     "language": "go",
     "difficulty": "medium",

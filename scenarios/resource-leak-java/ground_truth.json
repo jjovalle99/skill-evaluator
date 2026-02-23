@@ -16,7 +16,7 @@
       "line_range": [31, 44],
       "description": "Unclosed Connection, Statement, and ResultSet in exportToMemory — resources leak on success and exception paths",
       "keywords": ["resource leak", "Connection", "close", "try-with-resources", "finally"],
-      "consolidated_with": []
+      "consolidated_with": [0]
     }
   ],
   "expected_clean": false,
