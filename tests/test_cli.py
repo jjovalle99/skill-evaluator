@@ -5,7 +5,7 @@ import pytest
 from main import _build_parser
 from src.runner import parse_env_vars
 
-_BASE = ["skills/foo", "--prompt", "test"]
+_BASE = ["run", "skills/foo", "--prompt", "test"]
 
 
 def test_parse_env_vars_single_pair() -> None:
@@ -113,4 +113,34 @@ def test_parser_env_long_form() -> None:
 
 def test_parser_prompt_required() -> None:
     with pytest.raises(SystemExit):
-        _build_parser().parse_args(["skills/foo"])
+        _build_parser().parse_args(["run", "skills/foo"])
+
+
+def test_evaluate_subcommand_parses() -> None:
+    args = _build_parser().parse_args(
+        ["evaluate", "results/v0", "--scenarios", "scenarios/"]
+    )
+    assert args.command == "evaluate"
+    assert args.results_dir == Path("results/v0")
+    assert args.scenarios == Path("scenarios/")
+
+
+def test_evaluate_subcommand_model_default() -> None:
+    args = _build_parser().parse_args(
+        ["evaluate", "results/v0", "--scenarios", "scenarios/"]
+    )
+    assert args.model == "mistral-small-latest"
+
+
+def test_evaluate_subcommand_custom_model() -> None:
+    args = _build_parser().parse_args(
+        [
+            "evaluate",
+            "results/v0",
+            "--scenarios",
+            "scenarios/",
+            "--model",
+            "mistral-large",
+        ]
+    )
+    assert args.model == "mistral-large"

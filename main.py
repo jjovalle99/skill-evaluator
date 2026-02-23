@@ -73,29 +73,51 @@ def _stats_loop(
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Evaluate Claude Code skills in Docker"
+        description="Skill evaluator — run and evaluate Claude Code skills"
     )
-    parser.add_argument("skills", nargs="+", type=Path, help="Skill directories")
-    parser.add_argument("--image", default="docker-skill-evaluator:minimal")
-    parser.add_argument("--memory", default="1g")
-    parser.add_argument("--timeout", type=int, default=300)
-    parser.add_argument("--prompt", required=True)
-    parser.add_argument("--env-file", type=Path, default=Path(".env"))
-    parser.add_argument("--max-workers", type=int, default=None)
-    parser.add_argument("--name", default=None)
-    parser.add_argument("-e", "--env", action="append", default=[], metavar="KEY=VALUE")
-    parser.add_argument("--flags", default="")
-    parser.add_argument("--scenario", nargs="+", type=Path, default=None)
-    parser.add_argument("--output", type=Path, default=None)
-    parser.add_argument("--verbose", action="store_true")
-    parser.add_argument("--dry-run", action="store_true")
+    subs = parser.add_subparsers(dest="command", required=True)
+
+    # run subcommand
+    run_p = subs.add_parser("run", help="Run skills in Docker containers")
+    run_p.add_argument("skills", nargs="+", type=Path, help="Skill directories")
+    run_p.add_argument("--image", default="docker-skill-evaluator:minimal")
+    run_p.add_argument("--memory", default="1g")
+    run_p.add_argument("--timeout", type=int, default=300)
+    run_p.add_argument("--prompt", required=True)
+    run_p.add_argument("--env-file", type=Path, default=Path(".env"))
+    run_p.add_argument("--max-workers", type=int, default=None)
+    run_p.add_argument("--name", default=None)
+    run_p.add_argument("-e", "--env", action="append", default=[], metavar="KEY=VALUE")
+    run_p.add_argument("--flags", default="")
+    run_p.add_argument("--scenario", nargs="+", type=Path, default=None)
+    run_p.add_argument("--output", type=Path, default=None)
+    run_p.add_argument("--verbose", action="store_true")
+    run_p.add_argument("--dry-run", action="store_true")
+
+    # evaluate subcommand
+    eval_p = subs.add_parser("evaluate", help="Evaluate results against ground truth")
+    eval_p.add_argument(
+        "results_dir", type=Path, help="Directory with result markdown files"
+    )
+    eval_p.add_argument(
+        "--scenarios",
+        type=Path,
+        required=True,
+        help="Directory with scenario ground truths",
+    )
+    eval_p.add_argument(
+        "--model", default="mistral-small-latest", help="Mistral model for matching"
+    )
+    eval_p.add_argument(
+        "--output", type=Path, default=None, help="Path for JSON report output"
+    )
+    eval_p.add_argument("--env-file", type=Path, default=Path(".env"))
+
     return parser
 
 
-def main() -> None:
-    args = _build_parser().parse_args()
-    if args.verbose:
-        logging.basicConfig(level=logging.DEBUG, format="%(name)s %(message)s")
+def _run_command(args: argparse.Namespace) -> None:
+    """Handle the 'run' subcommand."""
     console = Console()
 
     load_dotenv(args.env_file)
@@ -241,6 +263,39 @@ def main() -> None:
                 console.print(r.stderr, style="red")
 
     sys.exit(0 if all(r.error is None for r in results) else 1)
+
+
+def _evaluate_command(args: argparse.Namespace) -> None:
+    """Handle the 'evaluate' subcommand."""
+    from mistralai import Mistral
+
+    from src.evaluate import evaluate_results
+    from src.report import export_report_json, print_evaluation_report
+
+    load_dotenv(args.env_file)
+    api_key = os.environ.get("MISTRAL_API_KEY", "")
+    console = Console()
+    if not api_key:
+        console.print("MISTRAL_API_KEY not set in env or .env file", style="red")
+        sys.exit(1)
+
+    client = Mistral(api_key=api_key)
+    results = evaluate_results(args.results_dir, args.scenarios, client, args.model)
+    print_evaluation_report(results, console=console)
+
+    if args.output is not None:
+        export_report_json(results, args.output)
+        console.print(f"Report exported to {args.output}", style="green")
+
+
+def main() -> None:
+    args = _build_parser().parse_args()
+    if hasattr(args, "verbose") and args.verbose:
+        logging.basicConfig(level=logging.DEBUG, format="%(name)s %(message)s")
+    if args.command == "run":
+        _run_command(args)
+    elif args.command == "evaluate":
+        _evaluate_command(args)
 
 
 if __name__ == "__main__":
