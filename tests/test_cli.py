@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from main import _build_parser
-from src.evaluator import parse_env_vars
+from src.runner import parse_env_vars
 
 _BASE = ["skills/foo", "--prompt", "test"]
 
@@ -18,9 +18,7 @@ def test_parse_env_vars_multiple_pairs() -> None:
 
 
 def test_parse_env_vars_value_containing_equals() -> None:
-    assert parse_env_vars(["DSN=host=db;port=5432"]) == {
-        "DSN": "host=db;port=5432"
-    }
+    assert parse_env_vars(["DSN=host=db;port=5432"]) == {"DSN": "host=db;port=5432"}
 
 
 def test_parse_env_vars_empty_value() -> None:

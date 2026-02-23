@@ -24,12 +24,12 @@ from src.display import (
     format_memory,
     format_summary,
 )
-from src.evaluator import (
+from src.runner import (
     ContainerConfig,
     ContainerStatus,
     discover_skills,
     load_prompt,
-    run_evaluations,
+    run_skills,
 )
 
 
@@ -65,9 +65,7 @@ def _stats_loop(
                 usage, limit = _poll_memory(container_cache[name])
                 if limit:
                     memory_cache[name] = format_memory(usage, limit)
-                    memory_peak_cache[name] = max(
-                        memory_peak_cache.get(name, 0), usage
-                    )
+                    memory_peak_cache[name] = max(memory_peak_cache.get(name, 0), usage)
                 logger.debug("stats for %s: %s/%s", name, usage, limit)
             except Exception:
                 logger.debug("stats poll failed for %s", name, exc_info=True)
@@ -77,9 +75,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Evaluate Claude Code skills in Docker"
     )
-    parser.add_argument(
-        "skills", nargs="+", type=Path, help="Skill directories"
-    )
+    parser.add_argument("skills", nargs="+", type=Path, help="Skill directories")
     parser.add_argument("--image", default="docker-skill-evaluator:minimal")
     parser.add_argument("--memory", default="1g")
     parser.add_argument("--timeout", type=int, default=300)
@@ -87,9 +83,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--env-file", type=Path, default=Path(".env"))
     parser.add_argument("--max-workers", type=int, default=None)
     parser.add_argument("--name", default=None)
-    parser.add_argument(
-        "-e", "--env", action="append", default=[], metavar="KEY=VALUE"
-    )
+    parser.add_argument("-e", "--env", action="append", default=[], metavar="KEY=VALUE")
     parser.add_argument("--flags", default="")
     parser.add_argument("--scenario", nargs="+", type=Path, default=None)
     parser.add_argument("--output", type=Path, default=None)
@@ -114,7 +108,7 @@ def main() -> None:
 
     import shlex
 
-    from src.evaluator import discover_scenarios, parse_env_vars
+    from src.runner import discover_scenarios, parse_env_vars
 
     skills = discover_skills(args.skills, name_override=args.name)
     scenarios = discover_scenarios(args.scenario) if args.scenario else ()
@@ -218,7 +212,7 @@ def main() -> None:
             output_dir: Path = args.output
             on_result = lambda r: export_result(r, output_dir)
 
-        results = run_evaluations(
+        results = run_skills(
             skills,
             config,
             client,

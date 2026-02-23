@@ -7,21 +7,19 @@ from rich.progress import Progress, TaskID
 from rich.table import Table
 from rich.text import Text
 
-from src.evaluator import (
+from src.runner import (
     ContainerStatus,
-    EvalResult,
+    RunResult,
     ScenarioConfig,
     SkillConfig,
 )
 
 
-def _format_result_markdown(result: EvalResult) -> str:
-    """Format a single EvalResult as markdown."""
+def _format_result_markdown(result: RunResult) -> str:
+    """Format a single run result as markdown."""
     error_display = result.error or "none"
     peak_display = (
-        _fmt_bytes(result.peak_memory_bytes)
-        if result.peak_memory_bytes
-        else "N/A"
+        _fmt_bytes(result.peak_memory_bytes) if result.peak_memory_bytes else "N/A"
     )
     return (
         f"# {result.skill_name}\n"
@@ -47,7 +45,7 @@ def _format_result_markdown(result: EvalResult) -> str:
     )
 
 
-def export_result(result: EvalResult, output_dir: Path) -> None:
+def export_result(result: RunResult, output_dir: Path) -> None:
     """Write a single result as a markdown file under output_dir."""
     if "/" in result.skill_name:
         file_path = output_dir / Path(result.skill_name + ".md")
@@ -57,7 +55,7 @@ def export_result(result: EvalResult, output_dir: Path) -> None:
     file_path.write_text(_format_result_markdown(result))
 
 
-def export_results(results: Sequence[EvalResult], output_dir: Path) -> None:
+def export_results(results: Sequence[RunResult], output_dir: Path) -> None:
     """Write each result as a markdown file under output_dir."""
     for result in results:
         export_result(result, output_dir)
@@ -109,7 +107,7 @@ def build_container_table(statuses: Sequence[ContainerStatus]) -> Table:
 
 def create_live_display(total_skills: int, progress: Progress) -> TaskID:
     """Create a progress task for tracking skill completion."""
-    return progress.add_task("Evaluating skills", total=total_skills)
+    return progress.add_task("Running skills", total=total_skills)
 
 
 def format_dry_run(
@@ -132,9 +130,7 @@ def format_dry_run(
     )
     flags_display = " ".join(extra_flags) if extra_flags else "(none)"
     env_display = (
-        " ".join(f"{k}={v}" for k, v in extra_env.items())
-        if extra_env
-        else "(none)"
+        " ".join(f"{k}={v}" for k, v in extra_env.items()) if extra_env else "(none)"
     )
     lines = [
         f"[bold]Image:[/bold]       {image}",
@@ -162,7 +158,7 @@ def format_dry_run(
 
 
 def format_summary(
-    results: Sequence[EvalResult], total_duration: float
+    results: Sequence[RunResult], total_duration: float
 ) -> RenderableType:
     """Format final summary as a rich Panel."""
     succeeded = sum(1 for r in results if r.error is None)
@@ -177,12 +173,6 @@ def format_summary(
             status = "[green]OK[/green]"
         else:
             status = f"[red]ERROR ({r.error})[/red]"
-        peak = (
-            f" peak:{_fmt_bytes(r.peak_memory_bytes)}"
-            if r.peak_memory_bytes
-            else ""
-        )
-        lines.append(
-            f"  {r.skill_name}: {status} ({r.duration_seconds:.1f}s{peak})"
-        )
+        peak = f" peak:{_fmt_bytes(r.peak_memory_bytes)}" if r.peak_memory_bytes else ""
+        lines.append(f"  {r.skill_name}: {status} ({r.duration_seconds:.1f}s{peak})")
     return Panel("\n".join(lines), title="Summary", border_style="blue")

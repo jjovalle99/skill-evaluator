@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from src.evaluator import load_prompt
+from src.runner import load_prompt
 
 
 def test_reads_file_when_path_exists(tmp_path: Path) -> None:

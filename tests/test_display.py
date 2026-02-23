@@ -8,7 +8,7 @@ from src.display import (
     format_dry_run,
     format_summary,
 )
-from src.evaluator import ContainerStatus, EvalResult, SkillConfig
+from src.runner import ContainerStatus, RunResult, SkillConfig
 
 
 def _render(renderable: object) -> str:
@@ -42,9 +42,9 @@ def test_build_container_table_empty() -> None:
 
 def test_format_summary_content() -> None:
     results = [
-        EvalResult("skill-a", 0, "out", "", 5.0, None),
-        EvalResult("skill-b", 137, "", "", 3.0, "oom_killed"),
-        EvalResult("skill-c", -1, "", "", 10.0, "timeout"),
+        RunResult("skill-a", 0, "out", "", 5.0, None),
+        RunResult("skill-b", 137, "", "", 3.0, "oom_killed"),
+        RunResult("skill-c", -1, "", "", 10.0, "timeout"),
     ]
     renderable = format_summary(results, 15.0)
     text = _render(renderable)
@@ -96,7 +96,7 @@ def test_format_dry_run_truncates_long_prompt() -> None:
 
 
 def test_format_dry_run_with_scenarios_shows_matrix() -> None:
-    from src.evaluator import ScenarioConfig
+    from src.runner import ScenarioConfig
 
     skills = (
         SkillConfig(path=Path("/tmp/a"), name="alpha"),
@@ -163,9 +163,7 @@ def test_format_dry_run_without_extra_env() -> None:
 def test_format_memory_mib() -> None:
     from src.display import format_memory
 
-    assert (
-        format_memory(256 * 1024 * 1024, 1024 * 1024 * 1024) == "256M / 1.0G"
-    )
+    assert format_memory(256 * 1024 * 1024, 1024 * 1024 * 1024) == "256M / 1.0G"
 
 
 def test_format_memory_gib() -> None:
@@ -185,9 +183,7 @@ def test_format_memory_zero() -> None:
 def test_format_summary_shows_peak() -> None:
     _MIB = 1024 * 1024
     results = [
-        EvalResult(
-            "skill-a", 0, "", "", 5.0, None, peak_memory_bytes=300 * _MIB
-        ),
+        RunResult("skill-a", 0, "", "", 5.0, None, peak_memory_bytes=300 * _MIB),
     ]
     text = _render(format_summary(results, 5.0))
     assert "300M" in text
@@ -197,7 +193,7 @@ def test_export_includes_peak_memory() -> None:
     from src.display import _format_result_markdown
 
     _MIB = 1024 * 1024
-    result = EvalResult(
+    result = RunResult(
         "skill-a", 0, "out", "err", 5.0, None, peak_memory_bytes=300 * _MIB
     )
     md = _format_result_markdown(result)

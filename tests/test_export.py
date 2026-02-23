@@ -1,12 +1,12 @@
 from pathlib import Path
 
-from src.evaluator import EvalResult
+from src.runner import RunResult
 
 
 def test_single_result_writes_markdown(tmp_path: Path) -> None:
     from src.display import export_results
 
-    result = EvalResult(
+    result = RunResult(
         skill_name="my-skill",
         exit_code=0,
         stdout="hello world",
@@ -30,7 +30,7 @@ def test_single_result_writes_markdown(tmp_path: Path) -> None:
 def test_nested_skill_name_creates_subdirs(tmp_path: Path) -> None:
     from src.display import export_results
 
-    result = EvalResult(
+    result = RunResult(
         skill_name="code-review/missing-null-check",
         exit_code=1,
         stdout="",
@@ -50,9 +50,9 @@ def test_multiple_results_write_separate_files(tmp_path: Path) -> None:
     from src.display import export_results
 
     results = [
-        EvalResult("skill-a", 0, "out-a", "", 1.0, None),
-        EvalResult("skill-b", 1, "", "err-b", 2.0, "nonzero_exit:1"),
-        EvalResult("skill-c", 0, "out-c", "", 3.0, None),
+        RunResult("skill-a", 0, "out-a", "", 1.0, None),
+        RunResult("skill-b", 1, "", "err-b", 2.0, "nonzero_exit:1"),
+        RunResult("skill-c", 0, "out-c", "", 3.0, None),
     ]
     export_results(results, tmp_path)
 
@@ -66,7 +66,7 @@ def test_multiple_results_write_separate_files(tmp_path: Path) -> None:
 def test_markdown_contains_all_fields(tmp_path: Path) -> None:
     from src.display import export_results
 
-    result = EvalResult(
+    result = RunResult(
         skill_name="test-skill",
         exit_code=137,
         stdout="standard output",
@@ -89,7 +89,7 @@ def test_markdown_contains_all_fields(tmp_path: Path) -> None:
 def test_export_result_writes_single_file(tmp_path: Path) -> None:
     from src.display import export_result
 
-    result = EvalResult(
+    result = RunResult(
         skill_name="single-skill",
         exit_code=0,
         stdout="output",

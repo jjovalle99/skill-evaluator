@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from src.evaluator import ScenarioConfig, discover_scenarios
+from src.runner import ScenarioConfig, discover_scenarios
 
 
 def test_valid_dir_with_setup_sh(tmp_path: Path) -> None:

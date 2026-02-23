@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.evaluator import calculate_max_workers, parse_mem_string
+from src.runner import calculate_max_workers, parse_mem_string
 
 
 def test_parse_megabytes() -> None:

@@ -4,10 +4,10 @@ from unittest.mock import MagicMock
 import pytest
 from requests.exceptions import ReadTimeout
 
-from src.evaluator import (
+from src.runner import (
     ContainerConfig,
     SkillConfig,
-    run_evaluation,
+    run_skill,
 )
 
 
@@ -30,14 +30,10 @@ def _make_config(
     )
 
 
-def _make_mock_container(
-    exit_code: int = 0, oom_killed: bool = False
-) -> MagicMock:
+def _make_mock_container(exit_code: int = 0, oom_killed: bool = False) -> MagicMock:
     container = MagicMock()
     container.wait.return_value = {"StatusCode": exit_code}
-    container.logs.side_effect = lambda stdout, stderr: (
-        b"out" if stdout else b"err"
-    )
+    container.logs.side_effect = lambda stdout, stderr: b"out" if stdout else b"err"
     container.attrs = {"State": {"OOMKilled": oom_killed}}
     return container
 
@@ -49,7 +45,7 @@ def test_happy_path(tmp_path: Path) -> None:
     container = _make_mock_container(exit_code=0)
     client.containers.create.return_value = container
 
-    result = run_evaluation(skill, config, client, lambda s: None)
+    result = run_skill(skill, config, client, lambda s: None)
 
     assert result.skill_name == "test-skill"
     assert result.exit_code == 0
@@ -68,7 +64,7 @@ def test_timeout(tmp_path: Path) -> None:
     container.wait.side_effect = ReadTimeout("timed out")
     client.containers.create.return_value = container
 
-    result = run_evaluation(skill, config, client, lambda s: None)
+    result = run_skill(skill, config, client, lambda s: None)
 
     assert result.error == "timeout"
     container.stop.assert_called_once()
@@ -82,7 +78,7 @@ def test_oom(tmp_path: Path) -> None:
     container = _make_mock_container(exit_code=137, oom_killed=True)
     client.containers.create.return_value = container
 
-    result = run_evaluation(skill, config, client, lambda s: None)
+    result = run_skill(skill, config, client, lambda s: None)
 
     assert result.error == "oom_killed"
     assert result.exit_code == 137
@@ -97,7 +93,7 @@ def test_cleanup_on_start_failure(tmp_path: Path) -> None:
     client.containers.create.return_value = container
 
     with pytest.raises(RuntimeError, match="start failed"):
-        run_evaluation(skill, config, client, lambda s: None)
+        run_skill(skill, config, client, lambda s: None)
 
     container.remove.assert_called_once_with(force=True)
 
@@ -109,7 +105,7 @@ def test_mount_path_uses_skill_name(tmp_path: Path) -> None:
     container = _make_mock_container(exit_code=0)
     client.containers.create.return_value = container
 
-    run_evaluation(skill, config, client, lambda s: None)
+    run_skill(skill, config, client, lambda s: None)
 
     call_kwargs = client.containers.create.call_args[1]
     expected_dest = f"/home/claude/.claude/skills/{skill.name}"
@@ -127,7 +123,7 @@ def test_status_callbacks(tmp_path: Path) -> None:
     client.containers.create.return_value = container
     statuses: list[str] = []
 
-    run_evaluation(skill, config, client, lambda s: statuses.append(s.state))
+    run_skill(skill, config, client, lambda s: statuses.append(s.state))
 
     assert "starting" in statuses
     assert "running" in statuses
@@ -141,24 +137,22 @@ def test_status_callbacks_include_container_name(tmp_path: Path) -> None:
     container = _make_mock_container(exit_code=0)
     container.name = "quirky_darwin"
     client.containers.create.return_value = container
-    from src.evaluator import ContainerStatus
+    from src.runner import ContainerStatus
 
     captured: list[ContainerStatus] = []
-    run_evaluation(skill, config, client, captured.append)
+    run_skill(skill, config, client, captured.append)
 
     assert all(s.container_name == "quirky_darwin" for s in captured)
 
 
 def test_extra_flags_prepended_to_command(tmp_path: Path) -> None:
     skill = _make_skill(tmp_path)
-    config = _make_config(
-        extra_flags=("--model", "sonnet-4", "--max-turns", "5")
-    )
+    config = _make_config(extra_flags=("--model", "sonnet-4", "--max-turns", "5"))
     client = MagicMock()
     container = _make_mock_container(exit_code=0)
     client.containers.create.return_value = container
 
-    run_evaluation(skill, config, client, lambda s: None)
+    run_skill(skill, config, client, lambda s: None)
 
     call_kwargs = client.containers.create.call_args[1]
     assert call_kwargs["command"] == [
@@ -178,16 +172,14 @@ def test_empty_extra_flags_keeps_default_command(tmp_path: Path) -> None:
     container = _make_mock_container(exit_code=0)
     client.containers.create.return_value = container
 
-    run_evaluation(skill, config, client, lambda s: None)
+    run_skill(skill, config, client, lambda s: None)
 
     call_kwargs = client.containers.create.call_args[1]
     assert call_kwargs["command"] == ["--print", "do the thing"]
 
 
-def _make_scenario(
-    tmp_path: Path, name: str = "code-review"
-) -> "ScenarioConfig":
-    from src.evaluator import ScenarioConfig
+def _make_scenario(tmp_path: Path, name: str = "code-review") -> "ScenarioConfig":
+    from src.runner import ScenarioConfig
 
     d = tmp_path / name
     d.mkdir(exist_ok=True)
@@ -202,7 +194,7 @@ def test_no_scenario_no_entrypoint_override(tmp_path: Path) -> None:
     container = _make_mock_container(exit_code=0)
     client.containers.create.return_value = container
 
-    run_evaluation(skill, config, client, lambda s: None)
+    run_skill(skill, config, client, lambda s: None)
 
     call_kwargs = client.containers.create.call_args[1]
     assert "entrypoint" not in call_kwargs
@@ -216,7 +208,7 @@ def test_scenario_adds_volume_mount(tmp_path: Path) -> None:
     container = _make_mock_container(exit_code=0)
     client.containers.create.return_value = container
 
-    run_evaluation(skill, config, client, lambda s: None, scenario=scenario)
+    run_skill(skill, config, client, lambda s: None, scenario=scenario)
 
     call_kwargs = client.containers.create.call_args[1]
     assert str(scenario.path) in call_kwargs["volumes"]
@@ -234,7 +226,7 @@ def test_scenario_sets_entrypoint(tmp_path: Path) -> None:
     container = _make_mock_container(exit_code=0)
     client.containers.create.return_value = container
 
-    run_evaluation(skill, config, client, lambda s: None, scenario=scenario)
+    run_skill(skill, config, client, lambda s: None, scenario=scenario)
 
     call_kwargs = client.containers.create.call_args[1]
     assert call_kwargs["entrypoint"] == ["bash", "-c"]
@@ -248,7 +240,7 @@ def test_scenario_command_runs_setup_then_claude(tmp_path: Path) -> None:
     container = _make_mock_container(exit_code=0)
     client.containers.create.return_value = container
 
-    run_evaluation(skill, config, client, lambda s: None, scenario=scenario)
+    run_skill(skill, config, client, lambda s: None, scenario=scenario)
 
     call_kwargs = client.containers.create.call_args[1]
     cmd = call_kwargs["command"]
@@ -267,9 +259,7 @@ def test_scenario_result_label_uses_dirname_and_scenario(
     container = _make_mock_container(exit_code=0)
     client.containers.create.return_value = container
 
-    result = run_evaluation(
-        skill, config, client, lambda s: None, scenario=scenario
-    )
+    result = run_skill(skill, config, client, lambda s: None, scenario=scenario)
 
     assert result.skill_name == "test-skill/review"
 
@@ -286,9 +276,7 @@ def test_scenario_with_name_override_label_uses_dirname(
     container = _make_mock_container(exit_code=0)
     client.containers.create.return_value = container
 
-    result = run_evaluation(
-        skill, config, client, lambda s: None, scenario=scenario
-    )
+    result = run_skill(skill, config, client, lambda s: None, scenario=scenario)
 
     assert result.skill_name == "actual-dir/review"
     call_kwargs = client.containers.create.call_args[1]
@@ -303,7 +291,7 @@ def test_exit_137_not_oom(tmp_path: Path) -> None:
     container = _make_mock_container(exit_code=137, oom_killed=False)
     client.containers.create.return_value = container
 
-    result = run_evaluation(skill, config, client, lambda s: None)
+    result = run_skill(skill, config, client, lambda s: None)
 
     assert result.error == "nonzero_exit:137"
     assert result.exit_code == 137
@@ -317,7 +305,7 @@ def test_peak_memory_from_cache(tmp_path: Path) -> None:
     container.name = "my_container"
     client.containers.create.return_value = container
 
-    result = run_evaluation(
+    result = run_skill(
         skill,
         config,
         client,
@@ -335,7 +323,7 @@ def test_peak_memory_zero_without_cache(tmp_path: Path) -> None:
     container = _make_mock_container(exit_code=0)
     client.containers.create.return_value = container
 
-    result = run_evaluation(skill, config, client, lambda s: None)
+    result = run_skill(skill, config, client, lambda s: None)
 
     assert result.peak_memory_bytes == 0
 
@@ -351,9 +339,7 @@ def test_skips_start_when_shutdown_set(tmp_path: Path) -> None:
     event = threading.Event()
     event.set()
 
-    result = run_evaluation(
-        skill, config, client, lambda s: None, shutdown_event=event
-    )
+    result = run_skill(skill, config, client, lambda s: None, shutdown_event=event)
 
     assert result.error == "interrupted"
     container.start.assert_not_called()
@@ -379,9 +365,7 @@ def test_container_registered_while_running(tmp_path: Path) -> None:
 
     container.wait = wait_spy
 
-    run_evaluation(
-        skill, config, client, lambda s: None, active_containers=active
-    )
+    run_skill(skill, config, client, lambda s: None, active_containers=active)
 
     assert seen_during_run == [True]
     assert container not in active

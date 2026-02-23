@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from src.evaluator import discover_skills
+from src.runner import discover_skills
 
 
 def test_valid_dirs(tmp_path: Path) -> None:

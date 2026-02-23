@@ -61,7 +61,7 @@ class ContainerStatus:
 
 
 @dataclass(frozen=True)
-class EvalResult:
+class RunResult:
     skill_name: str
     exit_code: int
     stdout: str
@@ -160,7 +160,7 @@ def _build_scenario_command(config: ContainerConfig, prompt: str) -> list[str]:
     ]
 
 
-def run_evaluation(
+def run_skill(
     skill: SkillConfig,
     config: ContainerConfig,
     client: DockerClient,
@@ -169,12 +169,10 @@ def run_evaluation(
     memory_peak_cache: dict[str, int] | None = None,
     shutdown_event: threading.Event | None = None,
     active_containers: set[Any] | None = None,
-) -> EvalResult:
-    """Run a single skill evaluation in a Docker container."""
+) -> RunResult:
+    """Run a single skill in a Docker container."""
     start = time.monotonic()
-    result_label = (
-        f"{skill.path.name}/{scenario.name}" if scenario else skill.name
-    )
+    result_label = f"{skill.path.name}/{scenario.name}" if scenario else skill.name
     skill_dest = f"/home/claude/.claude/skills/{skill.name}"
     volumes: dict[str, dict[str, str]] = {
         str(skill.path): {"bind": skill_dest, "mode": "ro"},
@@ -191,9 +189,7 @@ def run_evaluation(
     if scenario:
         volumes[str(scenario.path)] = {"bind": "/tmp/scenario", "mode": "ro"}
         create_kwargs["entrypoint"] = ["bash", "-c"]
-        create_kwargs["command"] = _build_scenario_command(
-            config, config.prompt
-        )
+        create_kwargs["command"] = _build_scenario_command(config, config.prompt)
     else:
         create_kwargs["command"] = [
             *config.extra_flags,
@@ -204,7 +200,7 @@ def run_evaluation(
     try:
         cname: str = container.name or ""
         if shutdown_event and shutdown_event.is_set():
-            return EvalResult(
+            return RunResult(
                 skill_name=result_label,
                 exit_code=-1,
                 stdout="",
@@ -217,9 +213,7 @@ def run_evaluation(
         if active_containers is not None:
             active_containers.add(container)
         on_status(
-            _make_status(
-                result_label, "running", time.monotonic() - start, cname
-            )
+            _make_status(result_label, "running", time.monotonic() - start, cname)
         )
         try:
             wait_result = container.wait(timeout=config.timeout_seconds)
@@ -228,7 +222,7 @@ def run_evaluation(
                 container.stop()
             elapsed = time.monotonic() - start
             on_status(_make_status(result_label, "timeout", elapsed, cname))
-            return EvalResult(
+            return RunResult(
                 skill_name=result_label,
                 exit_code=-1,
                 stdout="",
@@ -238,9 +232,7 @@ def run_evaluation(
             )
         exit_code: int = wait_result["StatusCode"]
         container.reload()
-        oom_killed: bool = container.attrs.get("State", {}).get(
-            "OOMKilled", False
-        )
+        oom_killed: bool = container.attrs.get("State", {}).get("OOMKilled", False)
         stdout = container.logs(stdout=True, stderr=False).decode()
         stderr = container.logs(stdout=False, stderr=True).decode()
         elapsed = time.monotonic() - start
@@ -248,7 +240,7 @@ def run_evaluation(
         state = "failed" if error else "completed"
         on_status(_make_status(result_label, state, elapsed, cname))
         peak = (memory_peak_cache or {}).get(cname, 0)
-        return EvalResult(
+        return RunResult(
             skill_name=result_label,
             exit_code=exit_code,
             stdout=stdout,
@@ -264,18 +256,18 @@ def run_evaluation(
             container.remove(force=True)
 
 
-def run_evaluations(
+def run_skills(
     skills: Sequence[SkillConfig],
     config: ContainerConfig,
     client: DockerClient,
     on_status: Callable[[ContainerStatus], None],
     max_workers: int | None = None,
     scenarios: Sequence[ScenarioConfig] = (),
-    on_result: Callable[[EvalResult], None] | None = None,
+    on_result: Callable[[RunResult], None] | None = None,
     memory_peak_cache: dict[str, int] | None = None,
     shutdown_event: threading.Event | None = None,
-) -> tuple[EvalResult, ...]:
-    """Run evaluations in parallel, returning results (partial on KeyboardInterrupt)."""
+) -> tuple[RunResult, ...]:
+    """Run skills in parallel, returning results (partial on KeyboardInterrupt)."""
     pairs: list[tuple[SkillConfig, ScenarioConfig | None]] = (
         [(s, sc) for s in skills for sc in scenarios]
         if scenarios
@@ -284,12 +276,12 @@ def run_evaluations(
     workers = max_workers or calculate_max_workers(client, config.mem_limit)
     event = shutdown_event or threading.Event()
     active: set[Any] = set()
-    results: list[EvalResult] = []
+    results: list[RunResult] = []
     pool = ThreadPoolExecutor(max_workers=workers)
     try:
         futures = {
             pool.submit(
-                run_evaluation,
+                run_skill,
                 skill,
                 config,
                 client,
