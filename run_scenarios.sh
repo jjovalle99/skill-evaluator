@@ -13,4 +13,5 @@ uv run python main.py run \
   --scenario scenarios/* \
   --flags "--model claude-opus-4-6 --dangerously-skip-permissions" \
   --output results/ \
-  --memory 2g
+  --memory 2g \
+  --trials 5
