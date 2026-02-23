@@ -144,3 +144,24 @@ def test_evaluate_subcommand_custom_model() -> None:
         ]
     )
     assert args.model == "mistral-large"
+
+
+def test_log_level_defaults_to_warning() -> None:
+    args = _build_parser().parse_args(_BASE)
+    assert args.log_level == "WARNING"
+
+
+def test_log_level_debug_parses() -> None:
+    args = _build_parser().parse_args(["--log-level", "DEBUG", *_BASE])
+    assert args.log_level == "DEBUG"
+
+
+@pytest.mark.parametrize("level", ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"])
+def test_log_level_accepts_standard_levels(level: str) -> None:
+    args = _build_parser().parse_args(["--log-level", level, *_BASE])
+    assert args.log_level == level
+
+
+def test_log_level_invalid_raises() -> None:
+    with pytest.raises(SystemExit):
+        _build_parser().parse_args(["--log-level", "TRACE", *_BASE])

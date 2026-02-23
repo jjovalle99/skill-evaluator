@@ -75,6 +75,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Skill evaluator — run and evaluate Claude Code skills"
     )
+    parser.add_argument(
+        "--log-level",
+        default="WARNING",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        help="Set logging level (default: WARNING)",
+    )
     subs = parser.add_subparsers(dest="command", required=True)
 
     # run subcommand
@@ -290,8 +296,10 @@ def _evaluate_command(args: argparse.Namespace) -> None:
 
 def main() -> None:
     args = _build_parser().parse_args()
-    if hasattr(args, "verbose") and args.verbose:
-        logging.basicConfig(level=logging.DEBUG, format="%(name)s %(message)s")
+    logging.basicConfig(
+        level=getattr(logging, args.log_level),
+        format="%(name)s %(message)s",
+    )
     if args.command == "run":
         _run_command(args)
     elif args.command == "evaluate":
