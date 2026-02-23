@@ -19,6 +19,7 @@ def _make_skill(tmp_path: Path, name: str = "test-skill") -> SkillConfig:
 
 def _make_config(
     extra_flags: tuple[str, ...] = (),
+    extra_volumes: dict[str, dict[str, str]] | None = None,
 ) -> ContainerConfig:
     return ContainerConfig(
         image="test:latest",
@@ -27,6 +28,7 @@ def _make_config(
         env_vars={"CLAUDE_CODE_OAUTH_TOKEN": "sk-test"},
         prompt="do the thing",
         extra_flags=extra_flags,
+        extra_volumes=extra_volumes or {},
     )
 
 
@@ -344,6 +346,29 @@ def test_skips_start_when_shutdown_set(tmp_path: Path) -> None:
     assert result.error == "interrupted"
     container.start.assert_not_called()
     container.remove.assert_called_once_with(force=True)
+
+
+def test_extra_volumes_merged_into_create_kwargs(tmp_path: Path) -> None:
+    skill = _make_skill(tmp_path)
+    extra = {"/host/creds.json": {"bind": "/container/creds.json", "mode": "ro"}}
+    config = _make_config(extra_volumes=extra)
+    client = MagicMock()
+    container = _make_mock_container(exit_code=0)
+    client.containers.create.return_value = container
+
+    run_skill(skill, config, client, lambda s: None)
+
+    call_kwargs = client.containers.create.call_args[1]
+    assert call_kwargs["volumes"]["/host/creds.json"] == {
+        "bind": "/container/creds.json",
+        "mode": "ro",
+    }
+    # skill volume still present
+    expected_dest = f"/home/claude/.claude/skills/{skill.name}"
+    assert call_kwargs["volumes"][str(skill.path)] == {
+        "bind": expected_dest,
+        "mode": "ro",
+    }
 
 
 def test_container_registered_while_running(tmp_path: Path) -> None:

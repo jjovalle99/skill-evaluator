@@ -5,7 +5,7 @@ import time
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +49,7 @@ class ContainerConfig:
     env_vars: dict[str, str]
     prompt: str
     extra_flags: tuple[str, ...] = ()
+    extra_volumes: dict[str, dict[str, str]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -176,6 +177,7 @@ def run_skill(
     skill_dest = f"/home/claude/.claude/skills/{skill.name}"
     volumes: dict[str, dict[str, str]] = {
         str(skill.path): {"bind": skill_dest, "mode": "ro"},
+        **config.extra_volumes,
     }
     create_kwargs: dict[str, object] = {
         "image": config.image,

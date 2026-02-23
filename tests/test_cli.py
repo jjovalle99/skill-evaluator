@@ -167,14 +167,27 @@ def test_log_level_invalid_raises() -> None:
         _build_parser().parse_args(["--log-level", "TRACE", *_BASE])
 
 
-_EVAL_BASE = ["evaluate", "results/v0", "--scenarios", "scenarios/"]
+def test_run_trials_output_dir_single(tmp_path: Path) -> None:
+    """trials=1 uses output as-is."""
+    from main import _trial_output_dir
+
+    assert _trial_output_dir(tmp_path, trial=1, total_trials=1) == tmp_path
 
 
-def test_evaluate_trials_defaults_to_one() -> None:
-    args = _build_parser().parse_args(_EVAL_BASE)
+def test_run_trials_output_dir_multiple(tmp_path: Path) -> None:
+    """trials>1 uses output/trial-{n}/."""
+    from main import _trial_output_dir
+
+    assert _trial_output_dir(tmp_path, trial=1, total_trials=3) == tmp_path / "trial-1"
+    assert _trial_output_dir(tmp_path, trial=2, total_trials=3) == tmp_path / "trial-2"
+    assert _trial_output_dir(tmp_path, trial=3, total_trials=3) == tmp_path / "trial-3"
+
+
+def test_run_trials_defaults_to_one() -> None:
+    args = _build_parser().parse_args(_BASE)
     assert args.trials == 1
 
 
-def test_evaluate_trials_parses_custom_value() -> None:
-    args = _build_parser().parse_args([*_EVAL_BASE, "--trials", "5"])
-    assert args.trials == 5
+def test_run_trials_parses_custom_value() -> None:
+    args = _build_parser().parse_args([*_BASE, "--trials", "3"])
+    assert args.trials == 3
