@@ -3,7 +3,7 @@ FROM debian:bookworm-slim AS base
 ENV DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8 LC_ALL=C.UTF-8
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      curl ca-certificates git ripgrep jq openssh-client python3-minimal \
+      curl ca-certificates git ripgrep jq openssh-client python3 \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 ARG USER_NAME=claude
