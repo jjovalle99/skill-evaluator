@@ -393,7 +393,7 @@ def _evaluate_command(args: argparse.Namespace) -> None:
 
         all_trials = asyncio.run(_evaluate_all())
         trial_results = aggregate_trials(all_trials)
-        print_trial_report(trial_results, console=console)
+        print_trial_report(trial_results, console=console, trials=len(trial_dirs))
         if args.output is not None:
             export_trial_report_json(trial_results, args.output, trials=len(trial_dirs))
             console.print(f"Report exported to {args.output}", style="green")

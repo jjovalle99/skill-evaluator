@@ -107,11 +107,50 @@ def test_print_trial_report_contains_plus_minus_format() -> None:
     results = [_make_trial_result()]
     buf = StringIO()
     console = Console(file=buf, width=160)
+    print_trial_report(results, console=console, trials=5)
+    output = buf.getvalue()
+    assert "0.83 ± 0.05" in output
+    assert "0.90 ± 0.10" in output
+    assert "100.2 ± 3.1" in output
+    assert "TOTAL" in output
+    assert "Averaged over 5 trials" in output
+
+
+def test_print_trial_report_shows_per_skill_summary() -> None:
+    from src.report import print_trial_report
+
+    results = [
+        _make_trial_result(scenario="s1", skill="code-review-v0"),
+        _make_trial_result(scenario="s2", skill="code-review-v0"),
+        _make_trial_result(scenario="s1", skill="code-review-v1"),
+        _make_trial_result(scenario="s2", skill="code-review-v1"),
+    ]
+    buf = StringIO()
+    console = Console(file=buf, width=200)
+    print_trial_report(results, console=console, trials=3)
+    output = buf.getvalue()
+    assert "Per-Skill Summary" in output
+    assert "code-review-v0" in output
+    assert "code-review-v1" in output
+    assert "±" in output
+    assert "TOTAL (" not in output
+    assert "Duration" in output
+    # Caption appears on both tables
+    assert output.count("Averaged over 3 trials") == 2
+
+
+def test_print_trial_report_no_summary_single_skill() -> None:
+    from src.report import print_trial_report
+
+    results = [
+        _make_trial_result(scenario="s1", skill="v0"),
+        _make_trial_result(scenario="s2", skill="v0"),
+    ]
+    buf = StringIO()
+    console = Console(file=buf, width=200)
     print_trial_report(results, console=console)
     output = buf.getvalue()
-    assert "0.83 +/- 0.05" in output
-    assert "0.90 +/- 0.10" in output
-    assert "100.2 +/- 3.1" in output
+    assert "Per-Skill Summary" not in output
     assert "TOTAL" in output
 
 
@@ -131,3 +170,27 @@ def test_export_trial_report_json_structure(tmp_path: Path) -> None:
     assert s["recall"] == {"mean": 0.90, "std": 0.10}
     assert "aggregate" in data
     assert "precision" in data["aggregate"]
+
+
+def test_export_trial_report_json_per_skill_aggregates(tmp_path: Path) -> None:
+    from src.report import export_trial_report_json
+
+    results = [
+        _make_trial_result(scenario="s1", skill="v0", precision_mean=0.90),
+        _make_trial_result(scenario="s2", skill="v0", precision_mean=0.80),
+        _make_trial_result(scenario="s1", skill="v1", precision_mean=0.70),
+        _make_trial_result(scenario="s2", skill="v1", precision_mean=0.60),
+    ]
+    out = tmp_path / "trial_report.json"
+    export_trial_report_json(results, out, trials=3)
+    data = json.loads(out.read_text())
+
+    assert "per_skill" in data
+    assert "v0" in data["per_skill"]
+    assert "v1" in data["per_skill"]
+    for skill in ("v0", "v1"):
+        agg = data["per_skill"][skill]
+        assert "precision" in agg
+        assert "recall" in agg
+        assert "f05" in agg
+        assert "total_tp" in agg

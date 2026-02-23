@@ -3,8 +3,9 @@ FROM debian:bookworm-slim AS base
 ENV DEBIAN_FRONTEND=noninteractive LANG=C.UTF-8 LC_ALL=C.UTF-8
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      curl ca-certificates git ripgrep jq openssh-client python3 \
-    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+      curl ca-certificates git ripgrep jq openssh-client python3 python3-pip \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
+    && rm -f /usr/lib/python3.11/EXTERNALLY-MANAGED
 
 ARG USER_NAME=claude
 ARG USER_UID=1000
