@@ -1,8 +1,11 @@
 import json
+import logging
 import pathlib
 import re
 from dataclasses import dataclass
 from typing import Any, cast
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -162,12 +165,19 @@ def match_findings_llm(
         "matching expected finding, or null if it doesn't match any.\n"
         'Respond with JSON: {"matches": [0, null, 1, ...]}'
     )
+    logger.debug(
+        "Calling Mistral model=%s to match %d findings against %d expected",
+        model,
+        len(actual),
+        len(expected),
+    )
     response = cast(Any, client).chat.complete(
         model=model,
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
     )
     content: str = response.choices[0].message.content
+    logger.debug("Mistral response: %s", content)
     parsed: dict[str, list[int | None]] = json.loads(content)
     return parsed["matches"]
 
