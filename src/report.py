@@ -206,6 +206,7 @@ def export_trial_report_json(
     trials: int,
 ) -> None:
     """Export trial-aggregated evaluation results as JSON."""
+
     scenarios = [asdict(r) for r in results]
     total_tp = sum(r.true_positives.mean for r in results)
     total_fp = sum(r.false_positives.mean for r in results)

@@ -150,7 +150,9 @@ def aggregate_trials(
             grouped[result.scenario_name].append(result)
 
     def _stats(values: list[float]) -> MetricStats:
-        return MetricStats(mean=mean(values), std=stdev(values))
+        return MetricStats(
+            mean=mean(values), std=stdev(values) if len(values) > 1 else 0.0
+        )
 
     return [
         ScenarioTrialResult(
@@ -163,6 +165,16 @@ def aggregate_trials(
         )
         for name, results in grouped.items()
     ]
+
+
+def discover_trial_dirs(results_dir: pathlib.Path) -> list[pathlib.Path]:
+    """Return sorted trial-* subdirectories, or empty list if none exist."""
+    return sorted(results_dir.glob("trial-*/"))
+
+
+def discover_skill_dirs(trial_dir: pathlib.Path) -> list[pathlib.Path]:
+    """Return subdirectories that contain .md result files."""
+    return sorted(d for d in trial_dir.iterdir() if d.is_dir() and list(d.glob("*.md")))
 
 
 def count_duplicates(findings: list[Finding]) -> int:

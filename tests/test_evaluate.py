@@ -6,6 +6,7 @@ from src.evaluate import (
     ExpectedFinding,
     Finding,
     GroundTruth,
+    ScenarioResult,
     load_ground_truth,
     parse_result_markdown,
 )
@@ -571,9 +572,7 @@ def _make_scenario_result(
     recall: float = 1.0,
     f05: float = 1.0,
     duration: float = 100.0,
-) -> "ScenarioResult":
-    from src.evaluate import ScenarioResult
-
+) -> ScenarioResult:
     return ScenarioResult(
         scenario_name=scenario,
         skill_name=skill,
@@ -641,7 +640,6 @@ def test_aggregate_trials_computes_mean_and_std() -> None:
     assert r.scenario_name == "s1"
     assert r.skill_name == "v0"
 
-    # Check mean values
     assert r.true_positives.mean == pytest.approx((2 + 3 + 2) / 3)
     assert r.false_positives.mean == pytest.approx((1 + 0 + 0) / 3)
     assert r.false_negatives.mean == pytest.approx((0 + 1 + 0) / 3)
@@ -651,7 +649,6 @@ def test_aggregate_trials_computes_mean_and_std() -> None:
     assert r.f05.mean == pytest.approx((0.74 + 0.94 + 1.0) / 3)
     assert r.duration_seconds.mean == pytest.approx((100 + 120 + 110) / 3)
 
-    # Check std > 0 for metrics that vary
     assert r.true_positives.std > 0
     assert r.precision.std > 0
     assert isinstance(r.true_positives, MetricStats)
@@ -674,3 +671,49 @@ def test_aggregate_trials_multiple_scenarios() -> None:
     by_name = {r.scenario_name: r for r in results}
     assert by_name["s1"].true_positives.mean == pytest.approx(2.0)
     assert by_name["s2"].true_positives.mean == pytest.approx(3.0)
+
+
+def test_aggregate_trials_single_trial_std_zero() -> None:
+    from src.evaluate import aggregate_trials
+
+    trial = [_make_scenario_result("s1", tp=2, precision=0.8, duration=50.0)]
+    results = aggregate_trials([trial])
+    assert len(results) == 1
+    assert results[0].true_positives.mean == pytest.approx(2.0)
+    assert results[0].true_positives.std == 0.0
+    assert results[0].precision.std == 0.0
+
+
+def test_discover_trial_dirs_returns_empty_when_no_trials(tmp_path: Path) -> None:
+    from src.evaluate import discover_trial_dirs
+
+    (tmp_path / "scenario.md").write_text("result")
+    assert discover_trial_dirs(tmp_path) == []
+
+
+def test_discover_trial_dirs_finds_sorted_trial_dirs(tmp_path: Path) -> None:
+    from src.evaluate import discover_trial_dirs
+
+    (tmp_path / "trial-2").mkdir()
+    (tmp_path / "trial-1").mkdir()
+    (tmp_path / "trial-10").mkdir()
+    result = discover_trial_dirs(tmp_path)
+    assert result == [tmp_path / "trial-1", tmp_path / "trial-10", tmp_path / "trial-2"]
+
+
+def test_discover_skill_dirs_finds_subdirs_with_md(tmp_path: Path) -> None:
+    from src.evaluate import discover_skill_dirs
+
+    skill1 = tmp_path / "code-review-v0"
+    skill1.mkdir()
+    (skill1 / "scenario.md").write_text("result")
+
+    skill2 = tmp_path / "code-review-v1"
+    skill2.mkdir()
+    (skill2 / "other.md").write_text("result")
+
+    empty = tmp_path / "empty-dir"
+    empty.mkdir()
+
+    result = discover_skill_dirs(tmp_path)
+    assert sorted(result) == sorted([skill1, skill2])

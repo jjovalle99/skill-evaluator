@@ -99,6 +99,12 @@ def _build_parser() -> argparse.ArgumentParser:
     run_p.add_argument("--output", type=Path, default=None)
     run_p.add_argument("--verbose", action="store_true")
     run_p.add_argument("--dry-run", action="store_true")
+    run_p.add_argument(
+        "--trials",
+        type=int,
+        default=1,
+        help="Run N independent trials (results in output/trial-{n}/ when N>1)",
+    )
 
     # evaluate subcommand
     eval_p = subs.add_parser("evaluate", help="Evaluate results against ground truth")
@@ -118,14 +124,63 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output", type=Path, default=None, help="Path for JSON report output"
     )
     eval_p.add_argument("--env-file", type=Path, default=Path(".env"))
-    eval_p.add_argument(
-        "--trials",
-        type=int,
-        default=1,
-        help="Run evaluation N times and report mean ± std",
-    )
 
     return parser
+
+
+_VERTEX_ENV_KEYS = (
+    "CLAUDE_CODE_USE_VERTEX",
+    "CLOUD_ML_REGION",
+    "ANTHROPIC_VERTEX_PROJECT_ID",
+    "ANTHROPIC_MODEL",
+    "ANTHROPIC_SMALL_FAST_MODEL",
+    "CLAUDE_CODE_SUBAGENT_MODEL",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+)
+
+_ADC_CONTAINER_PATH = "/home/claude/.config/gcloud/application_default_credentials.json"
+
+
+def _get_adc_path() -> Path:
+    return Path.home() / ".config" / "gcloud" / "application_default_credentials.json"
+
+
+def _resolve_auth(
+    console: Console,
+) -> tuple[dict[str, str], dict[str, dict[str, str]]]:
+    """Resolve container auth env vars and extra volumes.
+
+    Returns:
+        (env_vars, extra_volumes) — OAuth token or Vertex AI config.
+    """
+    token = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "")
+    if token:
+        return {"CLAUDE_CODE_OAUTH_TOKEN": token}, {}
+
+    use_vertex = os.environ.get("CLAUDE_CODE_USE_VERTEX", "")
+    project_id = os.environ.get("ANTHROPIC_VERTEX_PROJECT_ID", "")
+    if use_vertex and project_id:
+        env_vars = {k: v for k in _VERTEX_ENV_KEYS if (v := os.environ.get(k, ""))}
+        adc_path = _get_adc_path()
+        if not adc_path.is_file():
+            console.print(
+                f"Vertex AI configured but ADC file not found: {adc_path}",
+                style="red",
+            )
+            sys.exit(1)
+        volumes = {str(adc_path): {"bind": _ADC_CONTAINER_PATH, "mode": "ro"}}
+        return env_vars, volumes
+
+    console.print(
+        "No authentication found. Set CLAUDE_CODE_OAUTH_TOKEN or configure Vertex AI.",
+        style="red",
+    )
+    sys.exit(1)
+
+
+def _trial_output_dir(output: Path, trial: int, total_trials: int) -> Path:
+    """Compute per-trial output directory."""
+    return output / f"trial-{trial}" if total_trials > 1 else output
 
 
 def _run_command(args: argparse.Namespace) -> None:
@@ -133,12 +188,7 @@ def _run_command(args: argparse.Namespace) -> None:
     console = Console()
 
     load_dotenv(args.env_file)
-    token = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN", "")
-    if not token:
-        console.print(
-            "CLAUDE_CODE_OAUTH_TOKEN not set in env or .env file", style="red"
-        )
-        sys.exit(1)
+    auth_env, auth_volumes = _resolve_auth(console)
 
     import shlex
 
@@ -171,110 +221,117 @@ def _run_command(args: argparse.Namespace) -> None:
         image=args.image,
         mem_limit=args.memory,
         timeout_seconds=args.timeout,
-        env_vars={"CLAUDE_CODE_OAUTH_TOKEN": token, **extra_env},
+        env_vars={**auth_env, **extra_env},
         prompt=prompt,
         extra_flags=extra_flags,
+        extra_volumes=auth_volumes,
     )
-
-    statuses: dict[str, ContainerStatus] = {}
-    start_times: dict[str, float] = {}
-    memory_cache: dict[str, str] = {}
-    memory_peak_cache: dict[str, int] = {}
-    progress = Progress()
-    total = len(skills) * len(scenarios) if scenarios else len(skills)
-    task_id = create_live_display(total, progress)
 
     _RUNNING = frozenset({"starting", "running"})
     _TERMINAL = frozenset({"completed", "failed", "timeout", "oom"})
 
-    def _refresh(live: Live) -> None:
-        now = time.monotonic()
-        updated = [
-            ContainerStatus(
-                skill_name=s.skill_name,
-                state=s.state,
-                memory_usage=memory_cache.get(s.container_name, ""),
-                duration_seconds=now - start_times.get(s.container_name, now),
-                container_name=s.container_name,
+    all_results = []
+    for trial in range(1, args.trials + 1):
+        if args.trials > 1:
+            console.print(f"\n[bold]Trial {trial}/{args.trials}[/bold]")
+
+        statuses: dict[str, ContainerStatus] = {}
+        start_times: dict[str, float] = {}
+        memory_cache: dict[str, str] = {}
+        memory_peak_cache: dict[str, int] = {}
+        progress = Progress()
+        total = len(skills) * len(scenarios) if scenarios else len(skills)
+        task_id = create_live_display(total, progress)
+
+        def _refresh(live: Live) -> None:
+            now = time.monotonic()
+            updated = [
+                ContainerStatus(
+                    skill_name=s.skill_name,
+                    state=s.state,
+                    memory_usage=memory_cache.get(s.container_name, ""),
+                    duration_seconds=now - start_times.get(s.container_name, now),
+                    container_name=s.container_name,
+                )
+                if s.state in _RUNNING
+                else s
+                for s in statuses.values()
+            ]
+            live.update(Group(build_container_table(updated), progress))
+
+        start = time.monotonic()
+        with Live(
+            Group(build_container_table([]), progress),
+            console=console,
+            refresh_per_second=8,
+        ) as live:
+            stop_event = threading.Event()
+
+            def _tick() -> None:
+                while not stop_event.wait(0.25):
+                    _refresh(live)
+
+            ticker = threading.Thread(target=_tick, daemon=True)
+            ticker.start()
+
+            stats_thread = threading.Thread(
+                target=_stats_loop,
+                args=(
+                    stop_event,
+                    client,
+                    statuses,
+                    memory_cache,
+                    memory_peak_cache,
+                ),
+                daemon=True,
             )
-            if s.state in _RUNNING
-            else s
-            for s in statuses.values()
-        ]
-        live.update(Group(build_container_table(updated), progress))
+            stats_thread.start()
 
-    start = time.monotonic()
-    with Live(
-        Group(build_container_table([]), progress),
-        console=console,
-        refresh_per_second=8,
-    ) as live:
-        stop_event = threading.Event()
-
-        def _tick() -> None:
-            while not stop_event.wait(0.25):
+            def on_status(status: ContainerStatus) -> None:
+                if status.state in _RUNNING:
+                    start_times.setdefault(status.container_name, time.monotonic())
+                statuses[status.container_name] = status
+                if status.state in _TERMINAL:
+                    progress.advance(task_id)
                 _refresh(live)
 
-        ticker = threading.Thread(target=_tick, daemon=True)
-        ticker.start()
+            on_result = None
+            if args.output is not None:
+                from src.display import export_result
 
-        stats_thread = threading.Thread(
-            target=_stats_loop,
-            args=(
-                stop_event,
+                trial_output = _trial_output_dir(args.output, trial, args.trials)
+                on_result = lambda r, d=trial_output: export_result(r, d)
+
+            results = run_skills(
+                skills,
+                config,
                 client,
-                statuses,
-                memory_cache,
-                memory_peak_cache,
-            ),
-            daemon=True,
-        )
-        stats_thread.start()
+                on_status,
+                args.max_workers,
+                scenarios=scenarios,
+                on_result=on_result,
+                memory_peak_cache=memory_peak_cache,
+            )
+            stop_event.set()
+            ticker.join()
+            stats_thread.join(timeout=3.0)
+        total_duration = time.monotonic() - start
 
-        def on_status(status: ContainerStatus) -> None:
-            if status.state in _RUNNING:
-                start_times.setdefault(status.container_name, time.monotonic())
-            statuses[status.container_name] = status
-            if status.state in _TERMINAL:
-                progress.advance(task_id)
-            _refresh(live)
-
-        on_result = None
-        if args.output is not None:
-            from src.display import export_result
-
-            output_dir: Path = args.output
-            on_result = lambda r: export_result(r, output_dir)
-
-        results = run_skills(
-            skills,
-            config,
-            client,
-            on_status,
-            args.max_workers,
-            scenarios=scenarios,
-            on_result=on_result,
-            memory_peak_cache=memory_peak_cache,
-        )
-        stop_event.set()
-        ticker.join()
-        stats_thread.join(timeout=3.0)
-    total_duration = time.monotonic() - start
-
-    console.print(format_summary(results, total_duration))
+        console.print(format_summary(results, total_duration))
+        all_results.extend(results)
 
     if args.output is not None:
         console.print(f"Results exported to {args.output}", style="green")
 
     if args.verbose:
-        for r in results:
+        for r in all_results:
             console.print(f"\n[bold]--- {r.skill_name} ---[/bold]")
             if r.stdout:
                 console.print(r.stdout)
             if r.stderr:
                 console.print(r.stderr, style="red")
 
-    sys.exit(0 if all(r.error is None for r in results) else 1)
+    sys.exit(0 if all(r.error is None for r in all_results) else 1)
 
 
 def _evaluate_command(args: argparse.Namespace) -> None:
@@ -283,7 +340,13 @@ def _evaluate_command(args: argparse.Namespace) -> None:
 
     from mistralai import Mistral
 
-    from src.evaluate import aggregate_trials, evaluate_results
+    from src.evaluate import (
+        ScenarioResult,
+        aggregate_trials,
+        discover_skill_dirs,
+        discover_trial_dirs,
+        evaluate_results,
+    )
     from src.report import (
         export_report_json,
         export_trial_report_json,
@@ -300,25 +363,47 @@ def _evaluate_command(args: argparse.Namespace) -> None:
 
     client = Mistral(api_key=api_key)
 
-    if args.trials == 1:
+    trial_dirs = discover_trial_dirs(args.results_dir)
+    if trial_dirs:
+        skill_dirs = discover_skill_dirs(trial_dirs[0])
+        skill_names = {d.name for d in skill_dirs}
+        for td in trial_dirs[1:]:
+            td_skills = {d.name for d in discover_skill_dirs(td)}
+            missing = skill_names - td_skills
+            if missing:
+                console.print(
+                    f"Error: {td.name} missing skill dirs: {', '.join(sorted(missing))}",
+                    style="red",
+                )
+                sys.exit(1)
+
+        async def _evaluate_all() -> list[list[ScenarioResult]]:
+            all_trials = []
+            for td in trial_dirs:
+                trial_results = await asyncio.gather(
+                    *(
+                        evaluate_results(
+                            td / sd.name, args.scenarios, client, args.model
+                        )
+                        for sd in skill_dirs
+                    )
+                )
+                all_trials.append([r for batch in trial_results for r in batch])
+            return all_trials
+
+        all_trials = asyncio.run(_evaluate_all())
+        trial_results = aggregate_trials(all_trials)
+        print_trial_report(trial_results, console=console)
+        if args.output is not None:
+            export_trial_report_json(trial_results, args.output, trials=len(trial_dirs))
+            console.print(f"Report exported to {args.output}", style="green")
+    else:
         results = asyncio.run(
             evaluate_results(args.results_dir, args.scenarios, client, args.model)
         )
         print_evaluation_report(results, console=console)
         if args.output is not None:
             export_report_json(results, args.output)
-            console.print(f"Report exported to {args.output}", style="green")
-    else:
-        all_trials = [
-            asyncio.run(
-                evaluate_results(args.results_dir, args.scenarios, client, args.model)
-            )
-            for _ in range(args.trials)
-        ]
-        trial_results = aggregate_trials(all_trials)
-        print_trial_report(trial_results, console=console)
-        if args.output is not None:
-            export_trial_report_json(trial_results, args.output, trials=args.trials)
             console.print(f"Report exported to {args.output}", style="green")
 
 
