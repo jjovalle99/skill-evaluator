@@ -2,6 +2,7 @@ import json
 import pathlib
 import re
 from dataclasses import dataclass
+from typing import Any, cast
 
 
 @dataclass(frozen=True)
@@ -35,14 +36,14 @@ def parse_result_markdown(text: str) -> tuple[list[Finding], float]:
     if not json_match:
         return [], duration
 
-    raw: dict[str, list[dict[str, object]]] = json.loads(json_match.group(1))
+    raw: dict[str, Any] = json.loads(json_match.group(1))
     findings = [
         Finding(
             category=str(f["category"]),
             severity=str(f["severity"]),
-            confidence=int(f["confidence"]),  # type: ignore[arg-type]
+            confidence=int(f["confidence"]),
             file=str(f["file"]),
-            line_range=(int(f["line_range"][0]), int(f["line_range"][1])),  # type: ignore[index]
+            line_range=(int(f["line_range"][0]), int(f["line_range"][1])),
             description=str(f["description"]),
             reasoning=str(f["reasoning"]),
         )
@@ -129,7 +130,6 @@ def match_findings_llm(
     model: str,
 ) -> list[int | None]:
     """Use LLM to match actual findings against expected ground truth entries."""
-    from typing import Any, cast
 
     actual = [
         {
