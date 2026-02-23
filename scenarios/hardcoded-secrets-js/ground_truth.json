@@ -22,7 +22,7 @@
       "category": "security",
       "severity": "high",
       "file": "payments.js",
-      "line_range": [26, 26],
+      "line_range": [27, 27],
       "description": "Timing-unsafe HMAC comparison using === instead of crypto.timingSafeEqual allows signature bypass via timing side-channel",
       "keywords": ["timing", "HMAC", "timingSafeEqual", "constant-time", "side-channel"],
       "consolidated_with": []

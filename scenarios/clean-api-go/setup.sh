@@ -112,7 +112,7 @@ import (
 	"example.com/clean-api/internal/store"
 )
 
-var emailPrefixPattern = regexp.MustCompile(`^[a-zA-Z0-9._%+\-@]{1,80}$`)
+var emailPrefixPattern = regexp.MustCompile(`^[a-zA-Z0-9.+\-@]{1,80}$`)
 
 type UserSearchHandler struct {
 	repo store.UserRepository
@@ -135,11 +135,13 @@ func (h *UserSearchHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(users); err != nil {
+	data, err := json.Marshal(users)
+	if err != nil {
 		http.Error(w, "encode error", http.StatusInternalServerError)
+		return
 	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(data)
 }
 GO
 
