@@ -153,6 +153,21 @@ def _classify_error(exit_code: int, *, oom_killed: bool = False) -> str | None:
     return f"nonzero_exit:{exit_code}"
 
 
+def _setup_tar(setup_path: Path) -> bytes:
+    """Create a tar archive containing only scenario/setup.sh."""
+    import io
+    import tarfile
+
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w") as tar:
+        data = setup_path.read_bytes()
+        info = tarfile.TarInfo(name="scenario/setup.sh")
+        info.size = len(data)
+        info.mode = 0o755
+        tar.addfile(info, io.BytesIO(data))
+    return buf.getvalue()
+
+
 def _build_scenario_command(config: ContainerConfig, prompt: str) -> list[str]:
     """Build shell command that runs setup.sh then exec's claude."""
     flags = " ".join(config.extra_flags) + " " if config.extra_flags else ""
@@ -189,7 +204,6 @@ def run_skill(
         "working_dir": "/workspace",
     }
     if scenario:
-        volumes[str(scenario.path)] = {"bind": "/tmp/scenario", "mode": "ro"}
         create_kwargs["entrypoint"] = ["bash", "-c"]
         create_kwargs["command"] = _build_scenario_command(config, config.prompt)
     else:
@@ -199,6 +213,8 @@ def run_skill(
             config.prompt,
         ]
     container = client.containers.create(**create_kwargs)  # type: ignore[arg-type]
+    if scenario:
+        container.put_archive("/tmp", _setup_tar(scenario.path / "setup.sh"))
     try:
         cname: str = container.name or ""
         if shutdown_event and shutdown_event.is_set():

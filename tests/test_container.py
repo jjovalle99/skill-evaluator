@@ -202,24 +202,6 @@ def test_no_scenario_no_entrypoint_override(tmp_path: Path) -> None:
     assert "entrypoint" not in call_kwargs
 
 
-def test_scenario_adds_volume_mount(tmp_path: Path) -> None:
-    skill = _make_skill(tmp_path)
-    scenario = _make_scenario(tmp_path)
-    config = _make_config()
-    client = MagicMock()
-    container = _make_mock_container(exit_code=0)
-    client.containers.create.return_value = container
-
-    run_skill(skill, config, client, lambda s: None, scenario=scenario)
-
-    call_kwargs = client.containers.create.call_args[1]
-    assert str(scenario.path) in call_kwargs["volumes"]
-    assert call_kwargs["volumes"][str(scenario.path)] == {
-        "bind": "/tmp/scenario",
-        "mode": "ro",
-    }
-
-
 def test_scenario_sets_entrypoint(tmp_path: Path) -> None:
     skill = _make_skill(tmp_path)
     scenario = _make_scenario(tmp_path)
@@ -369,6 +351,44 @@ def test_extra_volumes_merged_into_create_kwargs(tmp_path: Path) -> None:
         "bind": expected_dest,
         "mode": "ro",
     }
+
+
+def test_scenario_put_archive_contains_setup_sh(tmp_path: Path) -> None:
+    import io
+    import tarfile
+
+    skill = _make_skill(tmp_path)
+    scenario = _make_scenario(tmp_path)
+    config = _make_config()
+    client = MagicMock()
+    container = _make_mock_container(exit_code=0)
+    client.containers.create.return_value = container
+
+    run_skill(skill, config, client, lambda s: None, scenario=scenario)
+
+    dest, tar_bytes = container.put_archive.call_args[0]
+    assert dest == "/tmp"
+    with tarfile.open(fileobj=io.BytesIO(tar_bytes)) as tar:
+        member = tar.getmember("scenario/setup.sh")
+        assert member.mode == 0o755
+        content = tar.extractfile(member)
+        assert content is not None
+        assert content.read() == b"echo setup"
+
+
+def test_scenario_does_not_mount_scenario_dir(tmp_path: Path) -> None:
+    skill = _make_skill(tmp_path)
+    scenario = _make_scenario(tmp_path)
+    config = _make_config()
+    client = MagicMock()
+    container = _make_mock_container(exit_code=0)
+    client.containers.create.return_value = container
+
+    run_skill(skill, config, client, lambda s: None, scenario=scenario)
+
+    call_kwargs = client.containers.create.call_args[1]
+    assert str(scenario.path) not in call_kwargs["volumes"]
+    container.put_archive.assert_called_once()
 
 
 def test_container_registered_while_running(tmp_path: Path) -> None:
